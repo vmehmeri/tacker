@@ -49,6 +49,8 @@ class Controller(object):
     def __init__(self, plugin, collection, resource, attr_info,
                  allow_bulk=False, member_actions=None, parent=None,
                  allow_pagination=False, allow_sorting=False):
+        LOG.debug(_("CONTROLLER CREATED blah %(resource)s"),
+                  {'resource': resource})
         if member_actions is None:
             member_actions = []
         self._plugin = plugin

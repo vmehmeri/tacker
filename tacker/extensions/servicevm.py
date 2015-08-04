@@ -279,6 +279,81 @@ RESOURCE_ATTRIBUTE_MAP = {
             'allow_put': False,
             'is_visible': True,
         },
+
+    },
+
+    'sfcs': {
+        'id': {
+            'allow_post': False,
+            'allow_put': False,
+            'validate': {'type:uuid': None},
+            'is_visible': True,
+            'primary_key': True
+        },
+        'tenant_id': {
+            'allow_post': True,
+            'allow_put': False,
+            'validate': {'type:string': None},
+            'required_by_policy': True,
+            'is_visible': True
+        },
+        'template_id': {
+            'allow_post': True,
+            'allow_put': False,
+            'validate': {'type:uuid': None},
+            'is_visible': True,
+        },
+        'name': {
+            'allow_post': True,
+            'allow_put': True,
+            'validate': {'type:string': None},
+            'is_visible': True,
+            'default': '',
+        },
+        'description': {
+            'allow_post': True,
+            'allow_put': True,
+            'validate': {'type:string': None},
+            'is_visible': True,
+            'default': '',
+        },
+        'instance_id': {
+            'allow_post': False,
+            'allow_put': False,
+            'validate': {'type:string': None},
+            'is_visible': True,
+        },
+        'mgmt_url': {
+            'allow_post': False,
+            'allow_put': False,
+            'validate': {'type:string': None},
+            'is_visible': True,
+        },
+        'attributes': {
+            'allow_post': True,
+            'allow_put': True,
+            'validate': {'type:dict_or_none': None},
+            'is_visible': True,
+            'default': {},
+        },
+        'service_contexts': {
+            'allow_post': True,
+            'allow_put': False,
+            'validate': {'type:service_context_list': None},
+            'is_visible': True,
+            'default': [],
+        },
+        'services': {
+            'allow_post': False,
+            'allow_put': False,
+            'validate': {'type:uuid': None},
+            'is_visible': True,
+        },
+        'status': {
+            'allow_post': False,
+            'allow_put': False,
+            'is_visible': True,
+        },
     },
 
     # 'service_instances': {
@@ -385,6 +460,7 @@ class Servicevm(extensions.ExtensionDescriptor):
         plural_mappings['service_types'] = 'service_type'
         plural_mappings['service_contexts'] = 'service_context'
         plural_mappings['services'] = 'service'
+        plural_mappings['sfcs'] = 'sfc'
         attr.PLURALS.update(plural_mappings)
         action_map = {'device': {'attach_interface': 'PUT',
                                  'detach_interface': 'PUT'}}
