@@ -297,12 +297,6 @@ RESOURCE_ATTRIBUTE_MAP = {
             'required_by_policy': True,
             'is_visible': True
         },
-        'template_id': {
-            'allow_post': True,
-            'allow_put': False,
-            'validate': {'type:uuid': None},
-            'is_visible': True,
-        },
         'name': {
             'allow_post': True,
             'allow_put': True,
@@ -316,6 +310,13 @@ RESOURCE_ATTRIBUTE_MAP = {
             'validate': {'type:string': None},
             'is_visible': True,
             'default': '',
+        },
+        'infra_driver': {
+            'allow_post': True,
+            'allow_put': False,
+            'validate': {'type:string': None},
+            'is_visible': True,
+            'default': attr.ATTR_NOT_SPECIFIED,
         },
         'instance_id': {
             'allow_post': False,
@@ -519,6 +520,10 @@ class ServiceVMPluginBase(ServicePluginBase):
 
     @abc.abstractmethod
     def create_device(self, context, device):
+        pass
+
+    @abc.abstractmethod
+    def create_sfc(self, context, chain):
         pass
 
     @abc.abstractmethod

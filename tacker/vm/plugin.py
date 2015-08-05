@@ -316,6 +316,10 @@ class ServiceVMPlugin(vm_db.ServiceResourcePluginDb, ServiceVMMgmtMixin):
         device_dict['instance_id'] = instance_id
         return device_dict
 
+    def create_sfc(self, context, chain):
+        LOG.debug(_('chain_dict %s'), chain)
+        return
+
     def create_device(self, context, device):
         device_dict = self._create_device(context, device)
 

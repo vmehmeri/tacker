@@ -669,6 +669,10 @@ class ServiceResourcePluginDb(servicevm.ServiceVMPluginBase,
                                    constants.ACTIVE)
         return device_dict
 
+    def create_sfc(self, context, chain):
+        LOG.debug(_('chain_dict %s'), chain)
+        return
+
     # reference implementation. needs to be overrided by subclass
     def update_device(self, context, device_id, device):
         device_dict = self._update_device_pre(context, device_id)
