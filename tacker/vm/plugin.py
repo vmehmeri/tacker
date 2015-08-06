@@ -316,8 +316,70 @@ class ServiceVMPlugin(vm_db.ServiceResourcePluginDb, ServiceVMMgmtMixin):
         device_dict['instance_id'] = instance_id
         return device_dict
 
-    def create_sfc(self, context, chain):
-        LOG.debug(_('chain_dict %s'), chain)
+    def locate_ovs_to_sf(self, ovs_map):
+        pass
+
+    def create_sfc(self, context, sfc):
+        """
+        :param context:
+        :param sfc: dictionary of kwargs from REST request
+        :return: dictionary of created object?
+        """
+        sfc_dict = sfc['sfc']
+        LOG.debug(_('chain_dict %s'), sfc_dict)
+        # Default driver for SFC is opendaylight
+        if 'infra_driver' not in sfc_dict:
+            infra_driver = 'opendaylight'
+        else:
+            infra_driver = sfc['infra_driver']
+
+        dp_loc = 'sf-data-plane-locator'
+        sfs_json = dict()
+        # Required info for ODL REST call
+        # For now assume vxlan and nsh aware
+        for sf in sfc_dict['attributes']:
+            sf_json = dict()
+            sf_json[dp_loc] = dict()
+            sf_id = sf['name']
+            sf_json = service_function_json[sf_id]
+            sf_json['name'] = sf['name']
+            sf_json[dp_loc]['name'] = 'vxlan'
+            sf_json[dp_loc]['ip'] = sf['ip']
+            sf_json[dp_loc]['port'] = sf['port']
+            sf_json[dp_loc]['transport'] = 'service-locator:vxlan-gpe'
+            # trozet how do we get SFF?
+            # may need to ask ODL to find OVS attached to this VNF
+            # then create the SFF
+            # since this is a chicken and egg problem between SFF, and SF creation
+            # we give a dummy value then figure out later
+            sf_json[dp_loc]['service-function-forwarder'] = 'dummy'
+            sf_json['nsh-aware'] = 'true'
+            sf_json['rest-uri'] = "http://%s:%s" % (sf_json[dp_loc]['ip'], sf_json[dp_loc]['port'])
+            sf_json['ip-mgmt-address'] = sf['ip']
+            sf_json['type'] = "service-function-type:%s" % (sf['type'])
+
+            # concat service function json into full list
+            sfs_json = dict(sfs_json.items() + sf_json.items())
+
+        LOG.debug(_('dictionary for sf json:%s'), sfs_json)
+
+        # Locate OVS and build SFF json
+        ovs_mapping = locate_ovs_to_sf(sfs_json)
+
+        sff_json = create_sff_json(ovs_mapping)
+
+        # Go back and update sf SFF
+
+        # try to create SFF
+
+        # try to create SFs
+
+        # try to create SFC
+
+        # try to create SFP
+
+        # try to create RSP
+
         return
 
     def create_device(self, context, device):
