@@ -40,12 +40,12 @@ if is_ssl_enabled_service "tacker" || is_service_enabled tls-proxy; then
 fi
 
 # Set up default directories
-GITREPO["python-tackerclient"]=${TACKERCLIENT_REPO:-${GIT_BASE}/stackforge/python-tackerclient.git}
-GITBRANCH["python-tackerclient"]=${TACKERCLIENT_BRANCH:-master}
+GITREPO["python-tackerclient"]=${TACKERCLIENT_REPO:-${GIT_BASE}/trozet/python-tackerclient.git}
+GITBRANCH["python-tackerclient"]=${TACKERCLIENT_BRANCH:-SFC}
 GITDIR["python-tackerclient"]=$DEST/python-tackerclient
 
-GITREPO["tacker-horizon"]=${TACKERHORIZON_REPO:-${GIT_BASE}/stackforge/tacker-horizon.git}
-GITBRANCH["tacker-horizon"]=${TACKERHORZION_BRANCH:-master}
+GITREPO["tacker-horizon"]=${TACKERHORIZON_REPO:-${GIT_BASE}/trozet/tacker-horizon.git}
+GITBRANCH["tacker-horizon"]=${TACKERHORZION_BRANCH:-SFC}
 GITDIR["tacker-horizon"]=$DEST/tacker-horizon
 
 TACKER_DIR=$DEST/tacker
@@ -361,7 +361,7 @@ function tacker_horizon_install {
     git_clone_by_name "tacker-horizon"
     setup_dev_lib "tacker-horizon"
     sudo cp $DEST/tacker-horizon/openstack_dashboard_extensions/* $DEST/horizon/openstack_dashboard/enabled/
-    sudo service apache2 restart
+    sudo service httpd restart
     sleep 3
 }
 
