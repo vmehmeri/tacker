@@ -455,7 +455,7 @@ class ServiceVMPlugin(vm_db.ServiceResourcePluginDb, ServiceVMMgmtMixin):
         if 'infra_driver' not in sfc_dict:
             infra_driver = 'opendaylight'
         else:
-            infra_driver = sfc['infra_driver']
+            infra_driver = sfc_dict['infra_driver']
 
         dp_loc = 'sf-data-plane-locator'
         sfs_json = dict()
@@ -468,7 +468,12 @@ class ServiceVMPlugin(vm_db.ServiceResourcePluginDb, ServiceVMMgmtMixin):
             sf_json['name'] = sf['name']
             sf_json[dp_loc]['name'] = 'vxlan'
             sf_json[dp_loc]['ip'] = sf['ip']
-            sf_json[dp_loc]['port'] = sf['port']
+
+            if 'port' in sf.keys():
+                sf_json[dp_loc]['port'] = sf['port']
+            else:
+                sf_json[dp_loc]['port'] = '6633'
+
             sf_json[dp_loc]['transport'] = 'service-locator:vxlan-gpe'
             # trozet how do we get SFF?
             # may need to ask ODL to find OVS attached to this VNF
@@ -487,9 +492,9 @@ class ServiceVMPlugin(vm_db.ServiceResourcePluginDb, ServiceVMMgmtMixin):
         LOG.debug(_('dictionary for sf json:%s'), sfs_json)
 
         # Locate OVS and build SFF json
-        ovs_mapping = locate_ovs_to_sf(sfs_json)
+        ovs_mapping = self.locate_ovs_to_sf(sfs_json)
 
-        sff_json = create_sff_json(ovs_mapping, sfs_json)
+        sff_json = self.create_sff_json(ovs_mapping, sfs_json)
 
         # Go back and update sf SFF
         for br_name in ovs.mapping.keys():
