@@ -80,7 +80,7 @@ class DeviceOpenDaylight():
         full_url = 'http://' + self.odl_ip + ':' + str(self.odl_port) + '/' + url
         rest_call = getattr(requests, rest_type)
         if data is None:
-            r = rest_call(full_url)
+            r = rest_call(full_url, stream=False, auth=(self.username, self.password))
         else:
             r = rest_call(full_url, data=json.dumps(data), headers={'content-type': 'application/json'},
                           stream=False, auth=(self.username, self.password))
@@ -88,7 +88,7 @@ class DeviceOpenDaylight():
         if r.status_code != 200:
             return
         else:
-            return r.json
+            return r.json()
 
     @log.log
     def list_network_topology(self):
