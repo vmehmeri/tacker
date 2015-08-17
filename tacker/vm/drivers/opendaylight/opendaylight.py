@@ -37,18 +37,32 @@ from tacker.vm.drivers import abstract_driver
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
 
+OPTS = [
+    cfg.StrOpt('ip',
+               default='127.0.0.1',
+               help=_("OpenDaylight Controller address")),
+    cfg.IntOpt('port',
+               default=8080,
+               help=_("OpenDaylight REST Port")),
+    cfg.StrOpt('username',
+               default='admin',
+               help=_("OpenDaylight username")),
+    cfg.StrOpt('password',
+               default='admin',
+               help=_("OpenDaylight password")),
+]
+CONF.register_opts(OPTS, group='servicevm_opendaylight')
 
-class DeviceOpenDaylight(abstract_driver.DeviceAbstractDriver):
+class DeviceOpenDaylight():
 
     """OpenDaylight driver of hosting device."""
 
     def __init__(self):
-        super(DeviceOpenDaylight, self).__init__()
         if 'opendaylight' in cfg.CONF.servicevm.infra_driver:
-            self.odl_ip = cfg.CONF.opendaylight.ip
-            self.odl_port = cfg.Conf.opendaylight.port
-            self.username = cfg.Conf.opendaylight.username
-            self.password = cfg.Conf.opendaylight.password
+            self.odl_ip = cfg.CONF.servicevm_opendaylight.ip
+            self.odl_port = cfg.CONF.servicevm_opendaylight.port
+            self.username = cfg.CONF.servicevm_opendaylight.username
+            self.password = cfg.CONF.servicevm_opendaylight.password
         else:
             LOG.warn(_('Unable to find opendaylight config in conf file'
                        'but opendaylight driver is loaded...'))
@@ -63,14 +77,14 @@ class DeviceOpenDaylight(abstract_driver.DeviceAbstractDriver):
         return 'OpenDaylight infra driver'
 
     def send_rest(self, data, rest_type, url):
-        full_url = 'http://' + self.odl_ip + ':' + self.odl_port + '/' + url
+        full_url = 'http://' + self.odl_ip + ':' + str(self.odl_port) + '/' + url
         rest_call = getattr(requests, rest_type)
         if data is None:
             r = rest_call(full_url)
         else:
             r = rest_call(full_url, data=json.dumps(data), headers={'content-type': 'application/json'},
                           stream=False, auth=(self.username, self.password))
-
+        LOG.debug(_('rest call response: %s'), r)
         if r.status_code != 200:
             return
         else:

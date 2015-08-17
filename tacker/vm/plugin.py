@@ -22,6 +22,7 @@
 
 import eventlet
 import inspect
+import ast
 
 from oslo_config import cfg
 from sqlalchemy.orm import exc as orm_exc
@@ -318,8 +319,8 @@ class ServiceVMPlugin(vm_db.ServiceResourcePluginDb, ServiceVMMgmtMixin):
 
     def find_ovs_br(self, sf_id, network_dict):
         """
-        :param sf_id: corresponding nova vm id
-        :param network_dict: ovsdb dictionary
+        :param sf_id: info to ID an sf, for example neutron port id
+        :param network_dict: ovsdb network topology dictionary
         :return: bridge-name
         """
         for node in network_dict:
@@ -332,7 +333,7 @@ class ServiceVMPlugin(vm_db.ServiceResourcePluginDb, ServiceVMMgmtMixin):
 
     def locate_ovs_to_sf(self, sfs_dict, driver_name):
         """
-        :param sfs_dict: dictionary of SFs by id
+        :param sfs_dict: dictionary of SFs by id to network (neutron port id)
         :param driver_name: name of SDN driver
         :return: dictionary mapping sfs to bridge name
         """
@@ -347,6 +348,8 @@ class ServiceVMPlugin(vm_db.ServiceResourcePluginDb, ServiceVMMgmtMixin):
         if network is None:
             return
 
+        LOG.debug(_('Network is %s'), network)
+
         br_mapping = dict()
 
         # make extensible to other controllers
@@ -354,7 +357,7 @@ class ServiceVMPlugin(vm_db.ServiceResourcePluginDb, ServiceVMMgmtMixin):
             network_dict = network['network-topology']
             # look to see if vm_id exists in network dict
             for sf in sfs_dict:
-                br_name = self.find_ovs_br(sf, network_dict)
+                br_name = self.find_ovs_br(sfs_dict[sf], network_dict)
                 if br_name is not None:
                     if br_name in br_mapping:
                         br_mapping[br_name]['sfs'] = [sf]+br_mapping[br_name]['sfs']
@@ -459,18 +462,19 @@ class ServiceVMPlugin(vm_db.ServiceResourcePluginDb, ServiceVMMgmtMixin):
 
         dp_loc = 'sf-data-plane-locator'
         sfs_json = dict()
+        sf_net_map = dict()
         # Required info for ODL REST call
         # For now assume vxlan and nsh aware
         for sf in sfc_dict['attributes']:
             sf_json = dict()
             sf_json[dp_loc] = dict()
-            sf_id = sf['name']
-            sf_json['name'] = sf['name']
+            sf_id = sf
+            sf_json['name'] = sf
             sf_json[dp_loc]['name'] = 'vxlan'
-            sf_json[dp_loc]['ip'] = sf['ip']
+            sf_json[dp_loc]['ip'] = sfc_dict['attributes'][sf]['ip']
 
-            if 'port' in sf.keys():
-                sf_json[dp_loc]['port'] = sf['port']
+            if 'port' in sfc_dict['attributes'][sf].keys():
+                sf_json[dp_loc]['port'] = sfc_dict['attributes'][sf]['port']
             else:
                 sf_json[dp_loc]['port'] = '6633'
 
@@ -483,16 +487,19 @@ class ServiceVMPlugin(vm_db.ServiceResourcePluginDb, ServiceVMMgmtMixin):
             sf_json[dp_loc]['service-function-forwarder'] = 'dummy'
             sf_json['nsh-aware'] = 'true'
             sf_json['rest-uri'] = "http://%s:%s" % (sf_json[dp_loc]['ip'], sf_json[dp_loc]['port'])
-            sf_json['ip-mgmt-address'] = sf['ip']
-            sf_json['type'] = "service-function-type:%s" % (sf['type'])
+            sf_json['ip-mgmt-address'] = sfc_dict['attributes'][sf]['ip']
+            sf_json['type'] = "service-function-type:%s" % (sfc_dict['attributes'][sf]['type'])
 
             # concat service function json into full dict
             sfs_json = dict(sfs_json.items() + {sf_id: sf_json}.items())
 
+            # map sf id to network id (neutron port)
+            sf_net_map[sf] = sfc_dict['attributes'][sf]['neutron_port_id']
+
         LOG.debug(_('dictionary for sf json:%s'), sfs_json)
 
         # Locate OVS and build SFF json
-        ovs_mapping = self.locate_ovs_to_sf(sfs_json)
+        ovs_mapping = self.locate_ovs_to_sf(sf_net_map, infra_driver)
 
         sff_json = self.create_sff_json(ovs_mapping, sfs_json)
 
