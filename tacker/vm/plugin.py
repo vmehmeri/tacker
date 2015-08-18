@@ -22,7 +22,7 @@
 
 import eventlet
 import inspect
-import ast
+import json
 
 from oslo_config import cfg
 from sqlalchemy.orm import exc as orm_exc
@@ -319,7 +319,7 @@ class ServiceVMPlugin(vm_db.ServiceResourcePluginDb, ServiceVMMgmtMixin):
         return device_dict
 
     @staticmethod
-    def find_ovs_br(self, sf_id, network_map):
+    def find_ovs_br(sf_id, network_map):
         """
         :param sf_id: info to ID an sf, for example neutron port id
         :param network_map: ovsdb network topology list
@@ -377,7 +377,7 @@ class ServiceVMPlugin(vm_db.ServiceResourcePluginDb, ServiceVMMgmtMixin):
         br_mapping = dict()
 
         # make extensible to other controllers
-        if driver_name is 'opendaylight':
+        if driver_name == 'opendaylight':
             network_map = network['network-topology']['topology']
             # look to see if vm_id exists in network dict
             for sf in sfs_dict:
@@ -404,31 +404,17 @@ class ServiceVMPlugin(vm_db.ServiceResourcePluginDb, ServiceVMMgmtMixin):
         :param bridge_mapping: dictionary of sf to ovs bridges
         :return: dictionary with formatted fields
         """
+        dp_loc = 'sf-data-plane-locator'
         sff_dp_loc = {'name': '',
-                      'service-function-forwarder-ovs:ovs-bridge': '',
                       'data-plane-locator':
                           {
                           'transport': 'service-locator:vxlan-gpe',
                           'port': '',
-                          'ip': '',
-                          },
-                      'service-function-forwarder-ovs:ovs-options':
-                          {
-                          'nshc1': 'flow',
-                          'nsp': 'flow',
-                          'key': 'flow',
-                          'remote-ip': 'flow',
-                          'nsi': 'flow',
-                          'nshc2': 'flow',
-                          'nshc3': 'flow',
-                          'dst-port': '',
-                          'nshc4': 'flow'
+                          'ip': ''
                           }
                       }
-
         sf_template = {'name': '',
-                       'type': '',
-                       'sff-sf-dataplane-locator': '',
+                       'type': ''
                        }
         sff_sf_dp_loc = {'service-function-forwarder-ovs:ovs-bridge': '',
                          'transport': 'service-locator:vxlan-gpe',
@@ -437,34 +423,34 @@ class ServiceVMPlugin(vm_db.ServiceResourcePluginDb, ServiceVMMgmtMixin):
                          }
 
         sff_list = []
-
         # build dict for each bridge
         for br in bridge_mapping.keys():
-            # create sff dataplane locator
-            temp_sff_dp_loc = {x: y for (x, y) in sff_dp_loc}
+            # create sff data-plane locator
+            temp_sff_dp_loc = sff_dp_loc.copy()
             temp_sff_dp_loc['name'] = bridge_mapping[br]['sff_name']
-            temp_sff_dp_loc['data-plane-locator']['port'] = bridge_mapping[br]['port']
-            temp_sff_dp_loc['data-plane-locator']['ip'] = bridge_mapping[br]['ip']
-            temp_sff_dp_loc['service-function-forwarder-ovs:ovs-bridge'] = br
-            temp_bridge_dict= {'bridge-name': br}
+            temp_sff_dp_loc['data-plane-locator']['port'] = '6633'
+            temp_sff_dp_loc['data-plane-locator']['ip'] = bridge_mapping[br]['ovs_ip']
+            # temp_sff_dp_loc['service-function-forwarder-ovs:ovs-bridge'] = br
+            temp_bridge_dict = {'bridge-name': br}
             sf_dicts = list()
-            for sf in bridge_mapping[sff]['sfs']:
+            for sf in bridge_mapping[br]['sfs']:
                 # build sf portion of dict
-                temp_sf_dict = {x: y for (x, y) in sf_template}
+                temp_sf_dict = sf_template.copy()
                 temp_sf_dict['name'] = sfs_dict[sf]['name']
                 temp_sf_dict['type'] = sfs_dict[sf]['type']
-                # build sf dataplane locator
-                temp_sff_sf_dp_loc = {x: y for (x, y) in sff_sf_dp_loc}
-                temp_sff_sf_dp_loc['service-function-forwarder-ovs:ovs-bridge'] = br
-                temp_sff_sf_dp_loc['port'] = sfs_dict[sf][dp_loc]['port']
-                temp_sff_sf_dp_loc['ip'] = sfs_dict[sf][dp_loc]['ip']
+                # build sf data-plane locator
+                temp_sff_sf_dp_loc = sff_sf_dp_loc.copy()
+                temp_sff_sf_dp_loc['service-function-forwarder-ovs:ovs-bridge'] = temp_bridge_dict
+                # trozet hardcoding first data-plane-locator index
+                temp_sff_sf_dp_loc['port'] = sfs_dict[sf][dp_loc][0]['port']
+                temp_sff_sf_dp_loc['ip'] = sfs_dict[sf][dp_loc][0]['ip']
 
-                temp_sf_dict['sff-sf-dataplane-locator'] = temp_sff_sf_dp_loc
+                temp_sf_dict['sff-sf-data-plane-locator'] = temp_sff_sf_dp_loc
                 sf_dicts.append(temp_sf_dict)
 
             # combine sf list into sff dict
-            temp_sff = dict({'name': br}.items() + {'sff-data-plane-locator': temp_sff_dp_loc}.items()
-                            + {'service-function-forwarder-ovs:ovs-bridge': temp_bridge_dict}.items()
+            temp_sff = dict({'name': temp_sff_dp_loc['name']}.items()
+                            + {'sff-data-plane-locator': [temp_sff_dp_loc]}.items()
                             + {'service-function-dictionary': sf_dicts}.items())
             sff_list.append(temp_sff)
 
@@ -494,28 +480,29 @@ class ServiceVMPlugin(vm_db.ServiceResourcePluginDb, ServiceVMMgmtMixin):
         # For now assume vxlan and nsh aware
         for sf in sfc_dict['attributes']:
             sf_json = dict()
-            sf_json[dp_loc] = dict()
+            sf_json[dp_loc] = list()
+            dp_loc_dict = dict()
             sf_id = sf
             sf_json['name'] = sf
-            sf_json[dp_loc]['name'] = 'vxlan'
-            sf_json[dp_loc]['ip'] = sfc_dict['attributes'][sf]['ip']
+            dp_loc_dict['name'] = 'vxlan'
+            dp_loc_dict['ip'] = sfc_dict['attributes'][sf]['ip']
 
             if 'port' in sfc_dict['attributes'][sf].keys():
-                sf_json[dp_loc]['port'] = sfc_dict['attributes'][sf]['port']
+                dp_loc_dict['port'] = sfc_dict['attributes'][sf]['port']
             else:
-                sf_json[dp_loc]['port'] = '6633'
+                dp_loc_dict['port'] = '6633'
 
-            sf_json[dp_loc]['transport'] = 'service-locator:vxlan-gpe'
+            dp_loc_dict['transport'] = 'service-locator:vxlan-gpe'
             # trozet how do we get SFF?
             # may need to ask ODL to find OVS attached to this VNF
             # then create the SFF
             # since this is a chicken and egg problem between SFF, and SF creation
             # we give a dummy value then figure out later
-            sf_json[dp_loc]['service-function-forwarder'] = 'dummy'
+            dp_loc_dict['service-function-forwarder'] = 'dummy'
             sf_json['nsh-aware'] = 'true'
-            sf_json['rest-uri'] = "http://%s:%s" % (sf_json[dp_loc]['ip'], sf_json[dp_loc]['port'])
             sf_json['ip-mgmt-address'] = sfc_dict['attributes'][sf]['ip']
             sf_json['type'] = "service-function-type:%s" % (sfc_dict['attributes'][sf]['type'])
+            sf_json[dp_loc].append(dp_loc_dict)
 
             # concat service function json into full dict
             sfs_json = dict(sfs_json.items() + {sf_id: sf_json}.items())
@@ -523,6 +510,7 @@ class ServiceVMPlugin(vm_db.ServiceResourcePluginDb, ServiceVMMgmtMixin):
             # map sf id to network id (neutron port)
             sf_net_map[sf] = sfc_dict['attributes'][sf]['neutron_port_id']
 
+        LOG.debug(_('dictionary for sf_net_map:%s'), sf_net_map)
         LOG.debug(_('dictionary for sf json:%s'), sfs_json)
 
         # Locate OVS, ovs_mapping will be a nested dict
@@ -534,7 +522,8 @@ class ServiceVMPlugin(vm_db.ServiceResourcePluginDb, ServiceVMMgmtMixin):
         # Go back and update sf SFF
         for br_name in ovs_mapping.keys():
             for sf_id in ovs_mapping[br_name]['sfs']:
-                sfs_json[sf_id]['service-function-forwarder'] = ovs_mapping[br_name]['sff_name']
+                # sfs_json[sf_id]['service-function-forwarder'] = ovs_mapping[br_name]['sff_name']
+                sfs_json[sf_id]['sf-data-plane-locator'][0]['service-function-forwarder'] = ovs_mapping[br_name]['sff_name']
                 LOG.debug(_('SF updated with SFF:%s'), ovs_mapping[br_name]['sff_name'])
         # try to create SFs
         service_functions_json = {'service-functions': {}}
@@ -542,9 +531,10 @@ class ServiceVMPlugin(vm_db.ServiceResourcePluginDb, ServiceVMMgmtMixin):
         for (x, y) in sfs_json.items():
             service_functions_json['service-functions']['service-function'].append(y)
 
+        LOG.debug(_('json request formatted sf json:%s'), json.dumps(service_functions_json))
         try:
             sfc_result = self._device_manager.invoke(
-                infra_driver, 'create_sfs', service_functions_json)
+                infra_driver, 'create_sfs', sfs_json=service_functions_json)
         except Exception:
             LOG.exception(_('Unable to create SFs'))
             return
@@ -552,9 +542,10 @@ class ServiceVMPlugin(vm_db.ServiceResourcePluginDb, ServiceVMMgmtMixin):
         # build SFF json
         sff_json = self.create_sff_json(ovs_mapping, sfs_json)
         # try to create SFFs
+        LOG.debug(_('json request formatted sf json:%s'), json.dumps(sff_json))
         try:
             sff_result = self._device_manager.invoke(
-                infra_driver, 'create_sff', sff_json)
+                infra_driver, 'create_sff', sff_json=sff_json)
         except Exception:
             LOG.exception(_('Unable to create SFFs'))
             return

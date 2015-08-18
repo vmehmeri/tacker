@@ -85,7 +85,7 @@ class DeviceOpenDaylight():
             r = rest_call(full_url, data=json.dumps(data), headers={'content-type': 'application/json'},
                           stream=False, auth=(self.username, self.password))
         LOG.debug(_('rest call response: %s'), r)
-        if r.status_code != 200:
+        if r.status_code != 200 or rest_type != 'get':
             return
         else:
             return r.json()
@@ -98,29 +98,29 @@ class DeviceOpenDaylight():
 
     @log.log
     def create_sff(self, sff_json):
-        url = '/restconf/config/service-function-forwarder:service-function-forwarders/'
+        url = 'restconf/config/service-function-forwarder:service-function-forwarders/'
         sff_result = self.send_rest(sff_json, 'put', url)
         return sff_result
 
     @log.log
     def create_sfs(self, sfs_json):
-        url = '/restconf/config/service-function:service-functions/'
+        url = 'restconf/config/service-function:service-functions/'
         sfs_result = self.send_rest(sfs_json, 'put', url)
         return sfs_result
 
     @log.log
     def create_sfc(self, sfc_json):
-        url = '/restconf/config/service-function-chain:service-function-chains/'
+        url = 'restconf/config/service-function-chain:service-function-chains/'
         raise NotImplementedError()
 
     @log.log
     def create_sfp(self, sfp_json):
-        url = '/restconf/config/service-function-path:service-function-paths/'
+        url = 'restconf/config/service-function-path:service-function-paths/'
         raise NotImplementedError()
 
     @log.log
     def create_rsp(self, rsp_json):
-        url = '/restconf/operational/rendered-service-path:rendered-service-paths/'
+        url = 'restconf/operational/rendered-service-path:rendered-service-paths/'
         raise NotImplementedError()
 
 
