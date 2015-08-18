@@ -174,6 +174,7 @@ class ServiceVMPlugin(vm_db.ServiceResourcePluginDb, ServiceVMMgmtMixin):
             cfg.CONF.servicevm.infra_driver)
         self.proxy_api = proxy_api.ServiceVMPluginApi(topics.SERVICEVM_AGENT)
         self._device_status = monitor.DeviceStatus()
+        self.sff_counter = 1
 
     def spawn_n(self, function, *args, **kwargs):
         self._pool.spawn_n(function, *args, **kwargs)
@@ -317,23 +318,45 @@ class ServiceVMPlugin(vm_db.ServiceResourcePluginDb, ServiceVMMgmtMixin):
         device_dict['instance_id'] = instance_id
         return device_dict
 
-    def find_ovs_br(self, sf_id, network_dict):
+    @staticmethod
+    def find_ovs_br(self, sf_id, network_map):
         """
         :param sf_id: info to ID an sf, for example neutron port id
-        :param network_dict: ovsdb network topology dictionary
-        :return: bridge-name
+        :param network_map: ovsdb network topology list
+        :return: bridge_dict: br_name, ovs_ip, ovs_port key-values
         """
-        for node in network_dict:
-            for endpoint in network_dict[node]:
-                network_endpoint = network_dict[node][endpoint]
-                if 'external_id' in network_endpoint and network_endpoint['external_id'] is sf_id:
-                    return network_dict[node]['ovsdb:bridge-name']
+        # trozet better way to traverse this is to use json lib itself
+        # for now this was quicker to write
+        bridge_dict = dict()
+        for net in network_map:
+            if 'node' in net:
+                for node_entry in net['node']:
+                    if 'termination-point' in node_entry:
+                        for endpoint in node_entry['termination-point']:
+                            if 'ovsdb:interface-external-ids' in endpoint:
+                                for external_id in endpoint['ovsdb:interface-external-ids']:
+                                    if 'external-id-value' in external_id:
+                                        if external_id['external-id-value'] == sf_id:
+                                            print 'Found!'
+                                            print node_entry['ovsdb:bridge-name']
+                                            bridge_dict['br_name'] = node_entry['ovsdb:bridge-name']
+                                            break
+                                        else:
+                                            print 'Not Found'
+                if 'br_name' in bridge_dict:
+                    for node_entry in net['node']:
+                        if 'ovsdb:connection-info' in node_entry:
+                            bridge_dict['ovs_ip'] = node_entry['ovsdb:connection-info']['remote-ip']
+                            bridge_dict['ovs_port'] = node_entry['ovsdb:connection-info']['remote-port']
+                            break
+        if all(key in bridge_dict for key in ('br_name', 'ovs_ip', 'ovs_port')):
+            return bridge_dict
 
         return
 
     def locate_ovs_to_sf(self, sfs_dict, driver_name):
         """
-        :param sfs_dict: dictionary of SFs by id to network (neutron port id)
+        :param sfs_dict: dictionary of SFs by id to network id (neutron port id)
         :param driver_name: name of SDN driver
         :return: dictionary mapping sfs to bridge name
         """
@@ -350,22 +373,26 @@ class ServiceVMPlugin(vm_db.ServiceResourcePluginDb, ServiceVMMgmtMixin):
 
         LOG.debug(_('Network is %s'), network)
 
+        # br_mapping key is nested dict with br_name as first key
         br_mapping = dict()
 
         # make extensible to other controllers
         if driver_name is 'opendaylight':
-            network_dict = network['network-topology']
+            network_map = network['network-topology']['topology']
             # look to see if vm_id exists in network dict
             for sf in sfs_dict:
-                br_name = self.find_ovs_br(sfs_dict[sf], network_dict)
-                if br_name is not None:
+                br_dict = self.find_ovs_br(sfs_dict[sf], network_map)
+                LOG.debug(_('br_dict from find_ovs %s'), br_dict)
+                if br_dict is not None:
+                    br_name = br_dict['br_name']
                     if br_name in br_mapping:
                         br_mapping[br_name]['sfs'] = [sf]+br_mapping[br_name]['sfs']
                     else:
-                        br_mapping[br_name]['sfs'] = [br_name]
-                        # trozet find the rest of the required SFF info
-                        # locator ip, port
-                        # also create an SFF name for each bridge
+                        br_mapping[br_name] = dict()
+                        br_mapping[br_name]['sfs'] = [sf]
+                        br_mapping[br_name]['ovs_ip'] = br_dict['ovs_ip']
+                        br_mapping[br_name]['sff_name'] = 'sff' + str(self.sff_counter)
+                        self.sff_counter += 1
                 else:
                     LOG.debug(_('Could not find OVS bridge for %s'), sf)
 
@@ -498,23 +525,17 @@ class ServiceVMPlugin(vm_db.ServiceResourcePluginDb, ServiceVMMgmtMixin):
 
         LOG.debug(_('dictionary for sf json:%s'), sfs_json)
 
-        # Locate OVS and build SFF json
+        # Locate OVS, ovs_mapping will be a nested dict
+        # first key is bridge name, secondary keys sfs list, ovs_ip, sff_name
         ovs_mapping = self.locate_ovs_to_sf(sf_net_map, infra_driver)
 
-        sff_json = self.create_sff_json(ovs_mapping, sfs_json)
+        LOG.debug(_('OVS MAP:%s'), ovs_mapping)
 
         # Go back and update sf SFF
-        for br_name in ovs.mapping.keys():
-            for sf_id in ovs.mapping[br_name]['sfs']:
-                sfs_json[sf_id]['service-function-forwarder'] = ovs.mapping[br_name]['sff_name']
-        # try to create SFFs
-        try:
-            sff_result = self._device_manager.invoke(
-                infra_driver, 'create_sff', sff_json)
-        except Exception:
-            LOG.exception(_('Unable to create SFFs'))
-            return
-
+        for br_name in ovs_mapping.keys():
+            for sf_id in ovs_mapping[br_name]['sfs']:
+                sfs_json[sf_id]['service-function-forwarder'] = ovs_mapping[br_name]['sff_name']
+                LOG.debug(_('SF updated with SFF:%s'), ovs_mapping[br_name]['sff_name'])
         # try to create SFs
         service_functions_json = {'service-functions': {}}
         service_functions_json['service-functions'] = {'service-function': list()}
@@ -527,6 +548,17 @@ class ServiceVMPlugin(vm_db.ServiceResourcePluginDb, ServiceVMMgmtMixin):
         except Exception:
             LOG.exception(_('Unable to create SFs'))
             return
+
+        # build SFF json
+        sff_json = self.create_sff_json(ovs_mapping, sfs_json)
+        # try to create SFFs
+        try:
+            sff_result = self._device_manager.invoke(
+                infra_driver, 'create_sff', sff_json)
+        except Exception:
+            LOG.exception(_('Unable to create SFFs'))
+            return
+
         # try to create SFC
 
         # try to create SFP
