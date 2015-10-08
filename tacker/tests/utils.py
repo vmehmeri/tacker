@@ -1,7 +1,4 @@
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
-
-# Copyright 2012 OpenStack Foundation.
-# All Rights Reserved.
+# Copyright 2015 Brocade Communications System, Inc.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -15,29 +12,11 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-# service type constants:
-CORE = "CORE"
-DUMMY = "DUMMY"
-VNFM = "VNFM"
+import os
 
-COMMON_PREFIXES = {
-    CORE: "",
-    DUMMY: "/dummy_svc",
-    VNFM: "",
-}
 
-# Service operation status constants
-ACTIVE = "ACTIVE"
-DOWN = "DOWN"
-PENDING_CREATE = "PENDING_CREATE"
-PENDING_UPDATE = "PENDING_UPDATE"
-PENDING_DELETE = "PENDING_DELETE"
-INACTIVE = "INACTIVE"
-DEAD = "DEAD"
-ERROR = "ERROR"
-
-ACTIVE_PENDING_STATUSES = (
-    ACTIVE,
-    PENDING_CREATE,
-    PENDING_UPDATE
-)
+def read_file(input_file):
+    yaml_file = os.path.abspath(os.path.join(os.path.dirname(__file__),
+                                             'etc/samples/' + str(input_file)))
+    with open(yaml_file, 'r') as f:
+        return f.read()
