@@ -33,7 +33,10 @@ from tacker.extensions import sfc
 from tacker.openstack.common import excutils
 from tacker.openstack.common import log as logging
 from tacker.plugins.common import constants
+from neutronclient.v2_0 import client as neutron_client
+from tacker.db.vm.vm_db import VNFMPluginDb
 import json
+import re
 
 LOG = logging.getLogger(__name__)
 
@@ -198,6 +201,30 @@ class SFCPlugin(sfc_db.SFCPluginDb):
         LOG.debug(_('SFFS dictionary output is %s'), sffs_dict)
         return sffs_dict
 
+    def _find_vnf_info(self, context, chain):
+        sfc_dict = dict()
+        for vnf in chain:
+            vnf_result = VNFMPluginDb.get_vnf(context, vnf)
+            vnf_data = vnf_result['vnf']
+            sfc_dict[vnf] = dict()
+            # find IP in mgmt_url string
+            sfc_dict[vnf]['ip'] = re.search(r'[0-9]+(?:\.[0-9]+){3}', vnf_data['mgmt_url']).group()
+            # trozet check here to see how services are passed
+            # we can only specify 1 atm for ODL
+            sfc_dict[vnf]['type'] = vnf_data['attributes']['service_type']
+            # we also need the neutron port ID
+            # tacker doesnt find this so we can use the vnf id to find the
+            # neutron port as it is listed in the name
+            nc = NeutronClient()
+            port_output = nc.list_neutron_ports()
+            for port in port_output['ports']:
+                if port['name'].find(vnf_data['id']) > 0:
+                    sfc_dict[vnf]['neutron_port_id'] = port['id']
+            if 'neutron_port_id' not in sfc_dict[vnf]:
+                raise KeyError('Unable to find neutron_port_id')
+
+        return sfc_dict
+
     def _create_sfc(self, context, sfc):
         """
         :param context:
@@ -206,7 +233,7 @@ class SFCPlugin(sfc_db.SFCPluginDb):
         """
         sfc_dict = sfc['sfc']
         LOG.debug(_('chain_dict %s'), sfc_dict)
-
+        vnf_dict = _find_vnf_info(context, sfc_dict['chain'])
         sfc_dict = self._create_sfc_pre(context, sfc)
         sfc_id = sfc_dict['id']
         # Default driver for SFC is opendaylight
@@ -220,14 +247,14 @@ class SFCPlugin(sfc_db.SFCPluginDb):
         sf_net_map = dict()
         # Required info for ODL REST call
         # For now assume vxlan and nsh aware
-        for sf in sfc_dict['attributes']:
+        for sf in sfc_dict['chain']:
             sf_json = dict()
             sf_json[dp_loc] = list()
             dp_loc_dict = dict()
             sf_id = sf
             sf_json['name'] = sf
             dp_loc_dict['name'] = 'vxlan'
-            dp_loc_dict['ip'] = sfc_dict['attributes'][sf]['ip']
+            dp_loc_dict['ip'] = vnf_dict[sf]['ip']
 
             if 'port' in sfc_dict['attributes'][sf].keys():
                 dp_loc_dict['port'] = sfc_dict['attributes'][sf]['port']
@@ -242,15 +269,15 @@ class SFCPlugin(sfc_db.SFCPluginDb):
             # we give a dummy value then figure out later
             dp_loc_dict['service-function-forwarder'] = 'dummy'
             sf_json['nsh-aware'] = 'true'
-            sf_json['ip-mgmt-address'] = sfc_dict['attributes'][sf]['ip']
-            sf_json['type'] = "service-function-type:%s" % (sfc_dict['attributes'][sf]['type'])
+            sf_json['ip-mgmt-address'] = vnf_dict[sf]['ip']
+            sf_json['type'] = "service-function-type:%s" % (vnf_dict[sf]['type'])
             sf_json[dp_loc].append(dp_loc_dict)
 
             # concat service function json into full dict
             sfs_json = dict(sfs_json.items() + {sf_id: sf_json}.items())
 
             # map sf id to network id (neutron port)
-            sf_net_map[sf] = sfc_dict['attributes'][sf]['neutron_port_id']
+            sf_net_map[sf] = vnf_dict[sf]['neutron_port_id']
 
         LOG.debug(_('dictionary for sf_net_map:%s'), sf_net_map)
         LOG.debug(_('dictionary for sf json:%s'), sfs_json)
@@ -343,3 +370,22 @@ class SFCPlugin(sfc_db.SFCPluginDb):
         self._create_sfc_status(context, sfc_id, new_status)
 
     # TODO fill in update and delete
+
+
+class NeutronClient:
+    def __init__(self):
+        auth_url = cfg.CONF.keystone_authtoken.auth_uri + '/v2.0'
+        authtoken = cfg.CONF.keystone_authtoken
+        kwargs = {
+            'password': authtoken.password,
+            'tenant_name': authtoken.project_name,
+            'username': authtoken.username,
+            'auth_url': auth_url,
+        }
+        self.client = neutron_client.Client(**kwargs)
+
+    def list_neutron_ports(self):
+        LOG.debug("list_ports()", )
+        port_info = self.client.list_ports()
+        print "API.Tacker Neutron Port List::" + str(port_info)
+        return port_info

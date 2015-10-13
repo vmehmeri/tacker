@@ -69,6 +69,9 @@ class SFC(model_base.BASE, models_v1.HasTenant):
     # symmetry of chain
     symmetrical = sa.Column(sa.String(255))
 
+    # chain
+    chain = sa.Column(sa.String(255))
+
     # TODO associated classifiers
 
     # TODO vnfs in chain, as attrs?
@@ -130,10 +133,10 @@ class SFCPluginDb(sfc.SFCPluginBase, db_base.CommonDbMixin):
         sfc_id = sfc.get('id') or str(uuid.uuid4())
         attributes = sfc.get('attributes', {})
         symmetrical = sfc.get('symmetrical', False)
+        chain = sfc.get('chain')
 
         with context.session.begin(subtransactions=True):
-            template_db = self._get_resource(context, DeviceTemplate,
-                                             template_id)
+
             sfc_db = SFC(id=sfc_id,
                          tenant_id=tenant_id,
                          name=name,
@@ -141,6 +144,7 @@ class SFCPluginDb(sfc.SFCPluginBase, db_base.CommonDbMixin):
                          instance_id=None,
                          infra_driver=infra_driver,
                          symmetrical=symmetrical,
+                         chain=chain,
                          status=constants.PENDING_CREATE)
             context.session.add(sfc_db)
             for key, value in attributes.items():
@@ -212,7 +216,7 @@ class SFCPluginDb(sfc.SFCPluginBase, db_base.CommonDbMixin):
             'attributes': self._make_sfc_attrs_dict(sfc_db.attributes)
         }
         key_list = ('id', 'tenant_id', 'name', 'description', 'instance_id',
-                    'infra_driver', 'status', 'symmetrical')
+                    'infra_driver', 'status', 'symmetrical', 'chain')
         res.update((key, sfc_db[key]) for key in key_list)
         return self._fields(res, fields)
 
