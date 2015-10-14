@@ -50,9 +50,8 @@ class SFCInUse(exceptions.InUse):
     message = _('SFC %(sfc_id)s is still in use')
 
 
-# trozet TODO add correct attribute validators and exceptions
-class SFCNotFound(exceptions.NotFound):
-    message = _('sfc %(sfc_id)s could not be found')
+class SFCCreateFailed(exceptions.TackerException):
+    message = _('sfc %(sfc_id)s could not be created')
 
 RESOURCE_ATTRIBUTE_MAP = {
 
@@ -78,6 +77,13 @@ RESOURCE_ATTRIBUTE_MAP = {
             'is_visible': True,
             'default': '',
         },
+        'chain': {
+            'allow_post': True,
+            'allow_put': True,
+            'validate': {'type:list': None},
+            'is_visible': True,
+            'default': '',
+        },
         'description': {
             'allow_post': True,
             'allow_put': True,
@@ -90,7 +96,7 @@ RESOURCE_ATTRIBUTE_MAP = {
             'allow_put': False,
             'validate': {'type:string': None},
             'is_visible': True,
-            'default': attr.ATTR_NOT_SPECIFIED,
+            'default': 'opendaylight',
         },
         'instance_id': {
             'allow_post': False,

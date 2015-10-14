@@ -152,6 +152,13 @@ def _validate_no_whitespace(data):
     return data
 
 
+def _validate_list(data, valid_values=None):
+    if not isinstance(data, list):
+        msg = _("'%s' is not a list") % data
+        LOG.debug(msg)
+        return msg
+
+
 def _validate_mac_address(data, valid_values=None):
     valid_mac = False
     try:
@@ -558,6 +565,7 @@ validators = {'type:dict': _validate_dict,
               'type:ip_address': _validate_ip_address,
               'type:ip_address_or_none': _validate_ip_address_or_none,
               'type:ip_pools': _validate_ip_pools,
+              'type:list': _validate_list,
               'type:mac_address': _validate_mac_address,
               'type:mac_address_or_none': _validate_mac_address_or_none,
               'type:nameservers': _validate_nameservers,

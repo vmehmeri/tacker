@@ -19,7 +19,7 @@
 
 
 import uuid
-
+import json
 import sqlalchemy as sa
 from sqlalchemy import orm
 from sqlalchemy.orm import exc as orm_exc
@@ -35,6 +35,7 @@ from tacker import manager
 from tacker.openstack.common import log as logging
 from tacker.openstack.common import uuidutils
 from tacker.plugins.common import constants
+from sqlalchemy.types import PickleType
 
 LOG = logging.getLogger(__name__)
 _ACTIVE_UPDATE = (constants.ACTIVE, constants.PENDING_UPDATE)
@@ -70,7 +71,7 @@ class SFC(model_base.BASE, models_v1.HasTenant):
     symmetrical = sa.Column(sa.String(255))
 
     # chain
-    chain = sa.Column(sa.String(255))
+    chain = sa.Column(PickleType(pickler=json))
 
     # TODO associated classifiers
 
@@ -85,7 +86,7 @@ class SFCAttribute(model_base.BASE, models_v1.HasId):
     The interpretation is up to actual driver of hosting device.
     """
     sfc_id = sa.Column(sa.String(255), sa.ForeignKey('sfcs.id'),
-                          nullable=False)
+                       nullable=False)
     key = sa.Column(sa.String(255), nullable=False)
     # json encoded value. example
     # "nic": [{"net-id": <net-uuid>}, {"port-id": <port-uuid>}]
@@ -116,7 +117,7 @@ class SFCPluginDb(sfc.SFCPluginBase, db_base.CommonDbMixin):
 
     @staticmethod
     def _infra_driver_name(sfc_dict):
-        return sfc_dict['sfc']['infra_driver']
+        return sfc_dict['infra_driver']
 
     @staticmethod
     def _instance_id(sfc_dict):
