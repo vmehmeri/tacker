@@ -140,7 +140,7 @@ class SFCPlugin(sfc_db.SFCPluginDb):
 
         try:
             self._device_manager.invoke(
-                driver_name, 'create_wait', plugin=self, context=context,
+                driver_name, 'create_wait',
                 sfc_dict=sfc_dict, sfc_id=instance_id)
         except sfc.SFCCreateWaitFailed:
             instance_id = None

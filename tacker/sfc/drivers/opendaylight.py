@@ -67,6 +67,14 @@ class ODLShowNetworkFailed(exceptions.TackerException):
     message = _('ODL Failed to dump network topology')
 
 
+class ODLSFPCreateFailed(exceptions.TackerException):
+    message = _('ODL SFP could not be created')
+
+
+class ODLRSPCreateFailed(exceptions.TackerException):
+    message = _('ODL RSP could not be created')
+
+
 class DeviceOpenDaylight():
 
     """OpenDaylight driver of hosting device."""
@@ -126,17 +134,20 @@ class DeviceOpenDaylight():
     @log.log
     def create_odl_sfc(self, sfc_json):
         url = 'restconf/config/service-function-chain:service-function-chains/'
-        raise NotImplementedError()
+        sfc_result = self.send_rest(sfc_json, 'put', url)
+        return sfc_result
 
     @log.log
     def create_odl_sfp(self, sfp_json):
         url = 'restconf/config/service-function-path:service-function-paths/'
-        raise NotImplementedError()
+        sfp_result = self.send_rest(sfp_json, 'put', url)
+        return sfp_result
 
     @log.log
     def create_odl_rsp(self, rsp_json):
         url = 'restconf/operational/rendered-service-path:rendered-service-paths/'
-        raise NotImplementedError()
+        rsp_result = self.send_rest(rsp_json, 'put', url)
+        return rsp_result
 
     @log.log
     def create_sfc(self, sfc_dict, vnf_dict):
@@ -218,12 +229,82 @@ class DeviceOpenDaylight():
             return
 
         # try to create SFC
+        sfc_json = self.create_sfc_json(sfc_dict, vnf_dict)
+        try:
+            sfc_result = self.create_odl_sfc(sfc_json=sfc_json)
+        except ODLSFCreateFailed:
+            LOG.exception(_('Unable to create ODL SFC'))
+            return
+
+        LOG.debug(_('ODL SFC create output:%s'), sfc_result)
 
         # try to create SFP
+        sfp_json = self.create_sfp_json(sfc_dict)
+        try:
+            sfp_result = self.create_odl_sfp(sfp_json=sfp_json)
+        except ODLSFPCreateFailed:
+            LOG.exception(_('Unable to create ODL SFP'))
+            return
+
+        LOG.debug(_('ODL SFP create output:%s'), sfp_result)
+
+        # try to create RSP
+        rsp_json = self.create_rsp_json(sfp_json)
+        try:
+            rsp_result = self.create_odl_rsp(rsp_json=rsp_json)
+        except ODLRSPCreateFailed:
+            LOG.exception(_('Unable to create ODL RSP'))
+            return
+
+        LOG.debug(_('ODL RSP create output:%s'), rsp_result)
+
         # trozet FIXME
         instance_id = None
 
-        # try to create RSP
+        return instance_id
+
+    @staticmethod
+    def create_rsp_json(sfps_dict):
+        sfp_name = sfps_dict['service-function-paths']['service-function-path'][0]['name']
+        rsp_dict = {'input': sfp_name}
+
+        return rsp_dict
+
+    @staticmethod
+    def create_sfp_json(sfc_dict):
+        sfp_dict = {'service-function-path': list()}
+        sfp_def = {'name': "Path-%s" % (sfc_dict['name']),
+                   'service-chain-name': sfc_dict['name'],
+                   'symmetric': sfc_dict['symmetrical']}
+        sfp_dict['service-function-path'].append(sfp_def)
+        sfps_dict = {'service-function-paths': sfp_dict}
+
+        return sfps_dict
+
+    @staticmethod
+    def create_sfc_json(sfc_dict, vnf_dict):
+        sfc_json_template = {'name': '',
+                             'symmetric': '',
+                             'sfc-service-function': '',
+                             }
+        sf_def_json_template = {'name': '',
+                                'type': ''
+                                }
+        sfc_json = {'service-function-chain': list()}
+        temp_sfc_json = sfc_json_template.copy()
+        temp_sfc_json['sfc-service-function'] = list()
+        for sf in sfc_dict['chain']:
+            temp_sf_def_json = sf_def_json_template.copy()
+            temp_sf_def_json['name'] = vnf_dict[sf]['name']
+            temp_sf_def_json['type'] = "service-function-type:%s" % (vnf_dict[sf]['type'])
+            temp_sfc_json['sfc-service-function'].append(temp_sf_def_json)
+
+        temp_sfc_json['name'] = sfc_dict['name']
+        temp_sfc_json['symmetric'] = str(sfc_dict['symmetrical']).lower()
+        sfc_json['service-function-chain'].append(temp_sfc_json)
+        sfcs_json = {'service-function-chains': sfc_json}
+        LOG.debug(_('dictionary for SFC json:%s'), sfcs_json)
+        return sfcs_json
 
     def locate_ovs_to_sf(self, sfs_dict):
         """
@@ -364,3 +445,7 @@ class DeviceOpenDaylight():
             return bridge_dict
 
         return
+
+    # TODO implement this
+    def create_wait(self, sfc_dict, sfc_id):
+        pass
