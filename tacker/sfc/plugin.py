@@ -109,28 +109,27 @@ class SFCPlugin(sfc_db.SFCPluginDb):
         else:
             infra_driver = sfc_dict['infra_driver']
 
-        try:
-            instance_id = self._device_manager.invoke(
-                infra_driver, 'create_sfc', sfc_dict=sfc_dict, vnf_dict=vnf_dict)
-        except sfc.SFCCreateFailed:
-            LOG.exception(_('Unable to create SFC'))
-            return
+        instance_id = self._device_manager.invoke(infra_driver, 'create_sfc', sfc_dict=sfc_dict, vnf_dict=vnf_dict)
 
         if instance_id is None:
             self._create_sfc_post(context, sfc_id, None, sfc_dict)
+            self._create_sfc_status(context, sfc_id, constants.ERROR)
             return sfc_dict
 
         sfc_dict['instance_id'] = instance_id
         LOG.debug(_('sfc_dict after sfc SFC Create complete: %s'), sfc_dict)
+        new_status = constants.ACTIVE
+        self._create_sfc_status(context, sfc_id, new_status)
+
         return sfc_dict
 
     def create_sfc(self, context, sfc):
         sfc_dict = self._create_sfc(context, sfc)
+        # TODO fix this or remove it, not sure if ODL is synchronous here
+        #def create_sfc_wait():
+        #    self._create_sfc_wait(context, sfc_dict)
 
-        def create_sfc_wait():
-            self._create_sfc_wait(context, sfc_dict)
-
-        self.spawn_n(create_sfc_wait)
+        #self.spawn_n(create_sfc_wait)
         return sfc_dict
 
     def _create_sfc_wait(self, context, sfc_dict):

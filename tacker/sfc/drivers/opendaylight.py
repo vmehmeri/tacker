@@ -71,8 +71,16 @@ class ODLSFPCreateFailed(exceptions.TackerException):
     message = _('ODL SFP could not be created')
 
 
+class ODLSFCCreateFailed(exceptions.TackerException):
+    message = _('ODL SFC could not be created')
+
+
 class ODLRSPCreateFailed(exceptions.TackerException):
     message = _('ODL RSP could not be created')
+
+
+class ODLRESTFailed(exceptions.TackerException):
+    message = _('REST returned %(status_code)')
 
 
 class DeviceOpenDaylight():
@@ -89,6 +97,10 @@ class DeviceOpenDaylight():
             LOG.warn(_('Unable to find opendaylight config in conf file'
                        'but opendaylight driver is loaded...'))
         self.sff_counter = 1
+        self.config_sf_url = 'restconf/config/service-function:service-functions/'
+        self.config_sff_url = 'restconf/config/service-function-forwarder:service-function-forwarders/'
+        self.config_sfc_url = 'restconf/config/service-function-chain:service-function-chains/'
+        self.config_sfp_url = 'restconf/config/service-function-path:service-function-paths/'
 
     def get_type(self):
         return 'opendaylight'
@@ -99,6 +111,7 @@ class DeviceOpenDaylight():
     def get_description(self):
         return 'OpenDaylight infra driver'
 
+    @log.log
     def send_rest(self, data, rest_type, url):
         full_url = 'http://' + self.odl_ip + ':' + str(self.odl_port) + '/' + url
         rest_call = getattr(requests, rest_type)
@@ -108,10 +121,7 @@ class DeviceOpenDaylight():
             r = rest_call(full_url, data=json.dumps(data), headers={'content-type': 'application/json'},
                           stream=False, auth=(self.username, self.password))
         LOG.debug(_('rest call response: %s'), r)
-        if r.status_code != 200 or rest_type != 'get':
-            return
-        else:
-            return r.json()
+        return r
 
     @log.log
     def list_network_topology(self):
@@ -121,32 +131,74 @@ class DeviceOpenDaylight():
 
     @log.log
     def create_odl_sff(self, sff_json):
-        url = 'restconf/config/service-function-forwarder:service-function-forwarders/'
-        sff_result = self.send_rest(sff_json, 'put', url)
+        sff_result = self.send_rest(sff_json, 'put', self.config_sff_url)
+        return sff_result
+
+    @log.log
+    def update_odl_sff(self, sff_json):
+        sff_result = self.send_rest(sff_json, 'put', self.config_sff_url)
+        return sff_result
+
+    @log.log
+    def delete_odl_sff(self, sff_json):
+        sff_result = self.send_rest(sff_json, 'delete', self.config_sff_url)
         return sff_result
 
     @log.log
     def create_odl_sfs(self, sfs_json):
-        url = 'restconf/config/service-function:service-functions/'
-        sfs_result = self.send_rest(sfs_json, 'put', url)
+        sfs_result = self.send_rest(sfs_json, 'put', self.config_sf_url)
+        return sfs_result
+
+    @log.log
+    def update_odl_sfs(self, sfs_json):
+        sfs_result = self.send_rest(sfs_json, 'put', self.config_sf_url)
+        return sfs_result
+
+    @log.log
+    def delete_odl_sfs(self, sfs_json):
+        sfs_result = self.send_rest(sfs_json, 'delete', self.config_sf_url)
         return sfs_result
 
     @log.log
     def create_odl_sfc(self, sfc_json):
-        url = 'restconf/config/service-function-chain:service-function-chains/'
-        sfc_result = self.send_rest(sfc_json, 'put', url)
+        sfc_result = self.send_rest(sfc_json, 'put', self.config_sfc_url)
+        return sfc_result
+
+    @log.log
+    def update_odl_sfc(self, sfc_json):
+        sfc_result = self.send_rest(sfc_json, 'put', self.config_sfc_url)
+        return sfc_result
+
+    @log.log
+    def delete_odl_sfc(self, sfc_json):
+        sfc_result = self.send_rest(sfc_json, 'delete', self.config_sfc_url)
         return sfc_result
 
     @log.log
     def create_odl_sfp(self, sfp_json):
-        url = 'restconf/config/service-function-path:service-function-paths/'
-        sfp_result = self.send_rest(sfp_json, 'put', url)
+        sfp_result = self.send_rest(sfp_json, 'put', self.config_sfp_url)
+        return sfp_result
+
+    @log.log
+    def update_odl_sfp(self, sfp_json):
+        sfp_result = self.send_rest(sfp_json, 'put', self.config_sfp_url)
+        return sfp_result
+
+    @log.log
+    def delete_odl_sfp(self, sfp_json):
+        sfp_result = self.send_rest(sfp_json, 'delete', self.config_sfp_url)
         return sfp_result
 
     @log.log
     def create_odl_rsp(self, rsp_json):
-        url = 'restconf/operational/rendered-service-path:rendered-service-paths/'
-        rsp_result = self.send_rest(rsp_json, 'put', url)
+        url = 'restconf/operations/rendered-service-path:create-rendered-path'
+        rsp_result = self.send_rest(rsp_json, 'post', url)
+        return rsp_result
+
+    @log.log
+    def delete_odl_rsp(self, rsp_json):
+        url = 'restconf/operations/rendered-service-path:delete-rendered-paths/'
+        rsp_result = self.send_rest(rsp_json, 'delete', url)
         return rsp_result
 
     @log.log
@@ -212,61 +264,58 @@ class DeviceOpenDaylight():
             service_functions_json['service-functions']['service-function'].append(y)
 
         LOG.debug(_('json request formatted sf json:%s'), json.dumps(service_functions_json))
-        try:
-            sf_result = self.create_odl_sfs(sfs_json=service_functions_json)
-        except ODLSFCreateFailed:
-            LOG.exception(_('Unable to create SFs'))
-            return
+        sf_result = self.create_odl_sfs(sfs_json=service_functions_json)
+        if sf_result.status_code != 200:
+            raise ODLSFCreateFailed
 
         # build SFF json
         sff_json = self.create_sff_json(ovs_mapping, sfs_json)
         # try to create SFFs
         LOG.debug(_('json request formatted sf json:%s'), json.dumps(sff_json))
-        try:
-            sff_result = self.create_odl_sff(sff_json=sff_json)
-        except ODLSFFCreateFailed:
+        sff_result = self.create_odl_sff(sff_json=sff_json)
+
+        if sff_result.status_code != 200:
             LOG.exception(_('Unable to create SFFs'))
-            return
+            raise ODLSFFCreateFailed
 
         # try to create SFC
         sfc_json = self.create_sfc_json(sfc_dict, vnf_dict)
-        try:
-            sfc_result = self.create_odl_sfc(sfc_json=sfc_json)
-        except ODLSFCreateFailed:
-            LOG.exception(_('Unable to create ODL SFC'))
-            return
+        sfc_result = self.create_odl_sfc(sfc_json=sfc_json)
 
-        LOG.debug(_('ODL SFC create output:%s'), sfc_result)
+        if sfc_result.status_code != 200:
+            LOG.exception(_('Unable to create ODL SFC'))
+            raise ODLSFCCreateFailed
+
+        LOG.debug(_('ODL SFC create output:%s'), sfc_result.text)
 
         # try to create SFP
         sfp_json = self.create_sfp_json(sfc_dict)
-        try:
-            sfp_result = self.create_odl_sfp(sfp_json=sfp_json)
-        except ODLSFPCreateFailed:
-            LOG.exception(_('Unable to create ODL SFP'))
-            return
+        sfp_result = self.create_odl_sfp(sfp_json=sfp_json)
 
-        LOG.debug(_('ODL SFP create output:%s'), sfp_result)
+        if sfp_result.status_code != 200:
+            LOG.exception(_('Unable to create ODL SFP'))
+            raise ODLSFPCreateFailed
+
+        LOG.debug(_('ODL SFP create output:%s'), sfp_result.text)
 
         # try to create RSP
         rsp_json = self.create_rsp_json(sfp_json)
-        try:
-            rsp_result = self.create_odl_rsp(rsp_json=rsp_json)
-        except ODLRSPCreateFailed:
+        rsp_result = self.create_odl_rsp(rsp_json=rsp_json)
+
+        if rsp_result.status_code != 200:
             LOG.exception(_('Unable to create ODL RSP'))
-            return
+            raise ODLRSPCreateFailed
 
-        LOG.debug(_('ODL RSP create output:%s'), rsp_result)
+        LOG.debug(_('ODL RSP create output:%s'), rsp_result.text)
 
-        # trozet FIXME
-        instance_id = None
+        instance_id = rsp_result.json()['output']['name']
 
         return instance_id
 
     @staticmethod
     def create_rsp_json(sfps_dict):
         sfp_name = sfps_dict['service-function-paths']['service-function-path'][0]['name']
-        rsp_dict = {'input': sfp_name}
+        rsp_dict = {'input': {'parent-service-function-path': str(sfp_name)}}
 
         return rsp_dict
 
@@ -313,12 +362,13 @@ class DeviceOpenDaylight():
         :return: dictionary mapping sfs to bridge name
         """
         # get topology
-        try:
-            network = self.list_network_topology()
+        net_response = self.list_network_topology()
 
-        except ODLShowNetworkFailed:
+        if net_response.status_code != 200:
             LOG.exception(_('Unable to get network topology'))
-            return
+            raise ODLShowNetworkFailed
+
+        network = net_response.json()
 
         if network is None:
             return
