@@ -135,6 +135,13 @@ RESOURCE_ATTRIBUTE_MAP = {
             'allow_put': False,
             'is_visible': True,
         },
+        'symmetrical': {
+            'allow_post': True,
+            'allow_put': True,
+            'validate': {'type:boolean': None},
+            'is_visible': True,
+            'default': False,
+        },
     },
 }
 

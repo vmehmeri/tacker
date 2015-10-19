@@ -118,6 +118,7 @@ class SFCPlugin(sfc_db.SFCPluginDb):
 
         sfc_dict['instance_id'] = instance_id
         LOG.debug(_('sfc_dict after sfc SFC Create complete: %s'), sfc_dict)
+        self._create_sfc_post(context, sfc_id, instance_id, sfc_dict)
         new_status = constants.ACTIVE
         self._create_sfc_status(context, sfc_id, new_status)
 
@@ -155,7 +156,39 @@ class SFCPlugin(sfc_db.SFCPluginDb):
         sfc_dict['status'] = new_status
         self._create_sfc_status(context, sfc_id, new_status)
 
-    # TODO fill in update and delete
+    def delete_sfc(self, context, sfc_id):
+        sfc_dict = self._delete_sfc_pre(context, sfc_id)
+        driver_name = self._infra_driver_name(sfc_dict)
+        instance_id = self._instance_id(sfc_dict)
+
+        try:
+            self._device_manager.invoke(driver_name, 'delete', plugin=self,
+                                        instance_id=instance_id)
+        except Exception as e:
+            with excutils.save_and_reraise_exception():
+                self._delete_sfc_post(context, sfc_id, e)
+
+        self._delete_sfc_post(context, sfc_id, None)
+
+    def update_sfc(self, context, sfc_id, sfc):
+        sfc_dict = self._update_sfc_pre(context, sfc_id)
+        driver_name = self._infra_driver_name(sfc_dict)
+        instance_id = self._instance_id(sfc_dict)
+        update_dict = sfc['sfc']
+        vnf_dict = self._find_vnf_info(context, update_dict['chain'])
+        try:
+            self._device_manager.invoke(
+                driver_name, 'update', plugin=self, update_sfc_dict=update_dict,
+                vnf_dict=vnf_dict, instance_id=instance_id)
+        except Exception:
+            with excutils.save_and_reraise_exception():
+                self._update_sfc_post(context, sfc_id, constants.ERROR)
+
+        # TODO implement update wait and check updated
+        new_status = constants.ACTIVE
+        self._update_device_post(context, sfc_dict['id'],
+                                 new_status, update_dict)
+        return update_dict
 
 
 class NeutronClient:

@@ -68,7 +68,7 @@ class SFC(model_base.BASE, models_v1.HasTenant):
     infra_driver = sa.Column(sa.String(255))
 
     # symmetry of chain
-    symmetrical = sa.Column(sa.String(255))
+    symmetrical = sa.Column(sa.Boolean(), default=False)
 
     # chain
     chain = sa.Column(PickleType(pickler=json))
@@ -287,7 +287,7 @@ class SFCPluginDb(sfc.SFCPluginBase, db_base.CommonDbMixin):
 
         return self._make_sfc_dict(sfc_db)
 
-    def _delete_device_post(self, context, sfc_id, error):
+    def _delete_sfc_post(self, context, sfc_id, error):
         with context.session.begin(subtransactions=True):
             query = (
                 self._model_query(context, SFC).

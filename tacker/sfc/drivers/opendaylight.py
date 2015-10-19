@@ -197,7 +197,7 @@ class DeviceOpenDaylight():
 
     @log.log
     def delete_odl_rsp(self, rsp_json):
-        url = 'restconf/operations/rendered-service-path:delete-rendered-paths/'
+        url = 'restconf/operations/rendered-service-path:delete-rendered-path/'
         rsp_result = self.send_rest(rsp_json, 'delete', url)
         return rsp_result
 
@@ -314,8 +314,15 @@ class DeviceOpenDaylight():
 
     @staticmethod
     def create_rsp_json(sfps_dict):
-        sfp_name = sfps_dict['service-function-paths']['service-function-path'][0]['name']
-        rsp_dict = {'input': {'parent-service-function-path': str(sfp_name)}}
+        if isinstance(sfps_dict, dict):
+            sfp_name = sfps_dict['service-function-paths']['service-function-path'][0]['name']
+            is_symmetric = sfps_dict['service-function-paths']['service-function-path'][0]['symmetric']
+            rsp_dict = {'input':
+                        {'parent-service-function-path': str(sfp_name),
+                         'symmetric': str(is_symmetric).lower()}
+                        }
+        else:
+            rsp_dict = {'input': {'parent-service-function-path': str(sfps_dict)}}
 
         return rsp_dict
 
@@ -499,3 +506,12 @@ class DeviceOpenDaylight():
     # TODO implement this
     def create_wait(self, sfc_dict, sfc_id):
         pass
+
+    @log.log
+    def delete_sfc(self, instance_id):
+        rsp_dict = {'input': {'name': str(instance_id)}}
+        return self.delete_odl_rsp(rsp_dict)
+
+    @log.log
+    def update_sfc(self, instance_id, update_sfc_dict, vnf_dict):
+        raise NotImplementedError
