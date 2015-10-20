@@ -160,10 +160,12 @@ class SFCPlugin(sfc_db.SFCPluginDb):
         sfc_dict = self._delete_sfc_pre(context, sfc_id)
         driver_name = self._infra_driver_name(sfc_dict)
         instance_id = self._instance_id(sfc_dict)
+        symmetrical = sfc_dict['symmetrical']
 
         try:
-            self._device_manager.invoke(driver_name, 'delete', plugin=self,
-                                        instance_id=instance_id)
+            self._device_manager.invoke(driver_name, 'delete_sfc',
+                                        instance_id=instance_id,
+                                        is_symmetrical=symmetrical)
         except Exception as e:
             with excutils.save_and_reraise_exception():
                 self._delete_sfc_post(context, sfc_id, e)

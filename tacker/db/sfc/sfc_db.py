@@ -20,6 +20,7 @@
 
 import uuid
 import json
+import ast
 import sqlalchemy as sa
 from sqlalchemy import orm
 from sqlalchemy.orm import exc as orm_exc
@@ -133,7 +134,9 @@ class SFCPluginDb(sfc.SFCPluginBase, db_base.CommonDbMixin):
         description = sfc.get('description')
         sfc_id = sfc.get('id') or str(uuid.uuid4())
         attributes = sfc.get('attributes', {})
-        symmetrical = sfc.get('symmetrical', False)
+        symmetrical = sfc.get('symmetrical', 'False')
+        if type(symmetrical) is not bool:
+            symmetrical = ast.literal_eval(symmetrical)
         chain = sfc.get('chain')
 
         with context.session.begin(subtransactions=True):
@@ -190,7 +193,7 @@ class SFCPluginDb(sfc.SFCPluginBase, db_base.CommonDbMixin):
     def _sfc_attribute_update_or_create(
             self, context, sfc_id, key, value):
         arg = (self._model_query(context, SFCAttribute).
-               filter(SFCAttribute.device_id == device_id).
+               filter(SFCAttribute.sfc_id == sfc_id).
                filter(SFCAttribute.key == key).first())
         if arg:
             arg.value = value

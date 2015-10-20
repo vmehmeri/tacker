@@ -83,6 +83,10 @@ class ODLRESTFailed(exceptions.TackerException):
     message = _('REST returned %(status_code)')
 
 
+class ODLRSPDeleteFailed(exceptions.TackerException):
+    message = _('ODL RSP could not be deleted')
+
+
 class DeviceOpenDaylight():
 
     """OpenDaylight driver of hosting device."""
@@ -198,7 +202,7 @@ class DeviceOpenDaylight():
     @log.log
     def delete_odl_rsp(self, rsp_json):
         url = 'restconf/operations/rendered-service-path:delete-rendered-path/'
-        rsp_result = self.send_rest(rsp_json, 'delete', url)
+        rsp_result = self.send_rest(rsp_json, 'post', url)
         return rsp_result
 
     @log.log
@@ -508,9 +512,21 @@ class DeviceOpenDaylight():
         pass
 
     @log.log
-    def delete_sfc(self, instance_id):
-        rsp_dict = {'input': {'name': str(instance_id)}}
-        return self.delete_odl_rsp(rsp_dict)
+    def delete_sfc(self, instance_id, is_symmetrical):
+        instance_list = [instance_id]
+        if is_symmetrical:
+            reverse_id = "%s-Reverse" % str(instance_id)
+            instance_list.append(reverse_id)
+        for instance in instance_list:
+            rsp_dict = {'input': {'name': str(instance)}}
+            rsp_result = self.delete_odl_rsp(rsp_dict)
+
+            if rsp_result.status_code != 200 or rsp_result.json()['output']['result']:
+                LOG.exception(_('Unable to delete RSP'))
+                raise ODLRSPDeleteFailed
+                return
+
+        return
 
     @log.log
     def update_sfc(self, instance_id, update_sfc_dict, vnf_dict):
