@@ -101,10 +101,12 @@ class DeviceOpenDaylight():
             LOG.warn(_('Unable to find opendaylight config in conf file'
                        'but opendaylight driver is loaded...'))
         self.sff_counter = 1
-        self.config_sf_url = 'restconf/config/service-function:service-functions/'
-        self.config_sff_url = 'restconf/config/service-function-forwarder:service-function-forwarders/'
-        self.config_sfc_url = 'restconf/config/service-function-chain:service-function-chains/'
-        self.config_sfp_url = 'restconf/config/service-function-path:service-function-paths/'
+        self.config_sf_url = 'restconf/config/service-function:service-functions/service-function/{}/'
+        self.config_sff_url = 'restconf/config/service-function-forwarder:service-function-forwarders/' \
+                              'service-function-forwarder/{}/'
+        self.config_sfc_url = 'restconf/config/service-function-chain:service-function-chains/' \
+                              'service-function-chain/{}/'
+        self.config_sfp_url = 'restconf/config/service-function-path:service-function-paths/service-function-path/{}'
 
     def get_type(self):
         return 'opendaylight'
@@ -135,7 +137,8 @@ class DeviceOpenDaylight():
 
     @log.log
     def create_odl_sff(self, sff_json):
-        sff_result = self.send_rest(sff_json, 'put', self.config_sff_url)
+        sff_name = sff_json['service-function-forwarder'][0]['name']
+        sff_result = self.send_rest(sff_json, 'put', self.config_sff_url.format(sff_name))
         return sff_result
 
     @log.log
@@ -150,7 +153,8 @@ class DeviceOpenDaylight():
 
     @log.log
     def create_odl_sfs(self, sfs_json):
-        sfs_result = self.send_rest(sfs_json, 'put', self.config_sf_url)
+        sf_name = sfs_json['service-function'][0]['name']
+        sfs_result = self.send_rest(sfs_json, 'put', self.config_sf_url.format(sf_name))
         return sfs_result
 
     @log.log
@@ -165,7 +169,8 @@ class DeviceOpenDaylight():
 
     @log.log
     def create_odl_sfc(self, sfc_json):
-        sfc_result = self.send_rest(sfc_json, 'put', self.config_sfc_url)
+        sfc_name = sfc_json['service-function-chain'][0]['name']
+        sfc_result = self.send_rest(sfc_json, 'put', self.config_sfc_url.format(sfc_name))
         return sfc_result
 
     @log.log
@@ -180,7 +185,8 @@ class DeviceOpenDaylight():
 
     @log.log
     def create_odl_sfp(self, sfp_json):
-        sfp_result = self.send_rest(sfp_json, 'put', self.config_sfp_url)
+        sfp_name = sfp_json['service-function-path'][0]['name']
+        sfp_result = self.send_rest(sfp_json, 'put', self.config_sfp_url.format(sfp_name))
         return sfp_result
 
     @log.log
@@ -258,29 +264,30 @@ class DeviceOpenDaylight():
         # Go back and update sf SFF
         for br_name in ovs_mapping.keys():
             for sf_id in ovs_mapping[br_name]['sfs']:
-                # sfs_json[sf_id]['service-function-forwarder'] = ovs_mapping[br_name]['sff_name']
                 sfs_json[sf_id]['sf-data-plane-locator'][0]['service-function-forwarder'] = ovs_mapping[br_name]['sff_name']
                 LOG.debug(_('SF updated with SFF:%s'), ovs_mapping[br_name]['sff_name'])
         # try to create SFs
-        service_functions_json = {'service-functions': {}}
-        service_functions_json['service-functions'] = {'service-function': list()}
         for (x, y) in sfs_json.items():
-            service_functions_json['service-functions']['service-function'].append(y)
+            service_function_json = {'service-function': list()}
+            service_function_json['service-function'].append(y)
+            LOG.debug(_('json request formatted sf json:%s'), json.dumps(service_function_json))
+            sf_result = self.create_odl_sfs(sfs_json=service_function_json)
+            if sf_result.status_code != 200:
+                LOG.exception(_('Unable to create ODL SF %s'), service_function_json)
+                raise ODLSFCreateFailed
 
-        LOG.debug(_('json request formatted sf json:%s'), json.dumps(service_functions_json))
-        sf_result = self.create_odl_sfs(sfs_json=service_functions_json)
-        if sf_result.status_code != 200:
-            raise ODLSFCreateFailed
-
-        # build SFF json
-        sff_json = self.create_sff_json(ovs_mapping, sfs_json)
+        # build SFF dict
+        sff_list = self.create_sff_json(ovs_mapping, sfs_json)
         # try to create SFFs
-        LOG.debug(_('json request formatted sf json:%s'), json.dumps(sff_json))
-        sff_result = self.create_odl_sff(sff_json=sff_json)
+        for sff in sff_list:
+            sff_json = {'service-function-forwarder': list()}
+            sff_json['service-function-forwarder'].append(sff)
+            LOG.debug(_('json request formatted sff json:%s'), json.dumps(sff_json))
+            sff_result = self.create_odl_sff(sff_json=sff_json)
 
-        if sff_result.status_code != 200:
-            LOG.exception(_('Unable to create SFFs'))
-            raise ODLSFFCreateFailed
+            if sff_result.status_code != 200:
+                LOG.exception(_('Unable to create SFFs'))
+                raise ODLSFFCreateFailed
 
         # try to create SFC
         sfc_json = self.create_sfc_json(sfc_dict, vnf_dict)
@@ -317,16 +324,16 @@ class DeviceOpenDaylight():
         return instance_id
 
     @staticmethod
-    def create_rsp_json(sfps_dict):
-        if isinstance(sfps_dict, dict):
-            sfp_name = sfps_dict['service-function-paths']['service-function-path'][0]['name']
-            is_symmetric = sfps_dict['service-function-paths']['service-function-path'][0]['symmetric']
+    def create_rsp_json(sfp_dict):
+        if isinstance(sfp_dict, dict):
+            sfp_name = sfp_dict['service-function-path'][0]['name']
+            is_symmetric = sfp_dict['service-function-path'][0]['symmetric']
             rsp_dict = {'input':
                         {'parent-service-function-path': str(sfp_name),
                          'symmetric': str(is_symmetric).lower()}
                         }
         else:
-            rsp_dict = {'input': {'parent-service-function-path': str(sfps_dict)}}
+            rsp_dict = {'input': {'parent-service-function-path': str(sfp_dict)}}
 
         return rsp_dict
 
@@ -337,9 +344,8 @@ class DeviceOpenDaylight():
                    'service-chain-name': sfc_dict['name'],
                    'symmetric': sfc_dict['symmetrical']}
         sfp_dict['service-function-path'].append(sfp_def)
-        sfps_dict = {'service-function-paths': sfp_dict}
 
-        return sfps_dict
+        return sfp_dict
 
     @staticmethod
     def create_sfc_json(sfc_dict, vnf_dict):
@@ -362,9 +368,8 @@ class DeviceOpenDaylight():
         temp_sfc_json['name'] = sfc_dict['name']
         temp_sfc_json['symmetric'] = str(sfc_dict['symmetrical']).lower()
         sfc_json['service-function-chain'].append(temp_sfc_json)
-        sfcs_json = {'service-function-chains': sfc_json}
-        LOG.debug(_('dictionary for SFC json:%s'), sfcs_json)
-        return sfcs_json
+        LOG.debug(_('dictionary for SFC json:%s'), sfc_json)
+        return sfc_json
 
     def locate_ovs_to_sf(self, sfs_dict):
         """
@@ -466,10 +471,8 @@ class DeviceOpenDaylight():
                             + {'service-function-dictionary': sf_dicts}.items())
             sff_list.append(temp_sff)
 
-        sff_dict = {'service-function-forwarder': sff_list}
-        sffs_dict = {'service-function-forwarders': sff_dict}
-        LOG.debug(_('SFFS dictionary output is %s'), sffs_dict)
-        return sffs_dict
+        LOG.debug(_('SFF list output is %s'), sff_list)
+        return sff_list
 
     @staticmethod
     def find_ovs_br(sf_id, network_map):

@@ -125,6 +125,7 @@ class SFCPlugin(sfc_db.SFCPluginDb):
         return sfc_dict
 
     def create_sfc(self, context, sfc):
+        self.sfc_exists(context, sfc['sfc']['name'])
         sfc_dict = self._create_sfc(context, sfc)
         # TODO fix this or remove it, not sure if ODL is synchronous here
         #def create_sfc_wait():

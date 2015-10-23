@@ -249,6 +249,14 @@ class SFCPluginDb(sfc.SFCPluginBase, db_base.CommonDbMixin):
         return [sfc for sfc in sfcs
                 if uuidutils.is_uuid_like(sfc['id'])]
 
+    def _sfc_exists(self, context, name):
+        query = self._model_query(context, SFC)
+        return query.filter(SFC.name == name).first()
+
+    def sfc_exists(self, context, name):
+        if self._sfc_exists(context, name):
+            raise sfc.SFCAlreadyExists(sfc_name=name)
+
     # reference implementation. needs to be overridden by subclass
     def update_sfc(self, context, sfc_id, sfc):
         sfc_dict = self._update_sfc_pre(context, sfc_id)

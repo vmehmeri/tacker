@@ -51,7 +51,11 @@ class SFCInUse(exceptions.InUse):
 
 
 class SFCCreateFailed(exceptions.TackerException):
-    message = _('sfc %(sfc_id)s could not be created')
+    message = _('SFC %(sfc_id)s could not be created')
+
+
+class SFCAlreadyExists(exceptions.InUse):
+    message = _('SFC with name %(sfc_name)s already exists!')
 
 RESOURCE_ATTRIBUTE_MAP = {
 
