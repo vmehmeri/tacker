@@ -136,6 +136,12 @@ class DeviceOpenDaylight():
         return network
 
     @log.log
+    def get_odl_sff(self):
+        url = 'restconf/config/service-function-forwarder:service-function-forwarders/'
+        sff_response = self.send_rest(None, 'get', url)
+        return sff_response
+
+    @log.log
     def create_odl_sff(self, sff_json):
         sff_name = sff_json['service-function-forwarder'][0]['name']
         sff_result = self.send_rest(sff_json, 'put', self.config_sff_url.format(sff_name))
@@ -277,7 +283,14 @@ class DeviceOpenDaylight():
                 raise ODLSFCreateFailed
 
         # build SFF dict
-        sff_list = self.create_sff_json(ovs_mapping, sfs_json)
+        # first we need to see if SFF already exists
+        # if so we update with new SFs only
+        prev_sff_dict = self.find_existing_sffs(ovs_mapping)
+        if prev_sff_dict is not None:
+            LOG.debug(_('Previous SFF detected'))
+            sff_list = self.create_sff_json(ovs_mapping, sfs_json, prev_sff_dict)
+        else:
+            sff_list = self.create_sff_json(ovs_mapping, sfs_json)
         # try to create SFFs
         for sff in sff_list:
             sff_json = {'service-function-forwarder': list()}
@@ -396,6 +409,7 @@ class DeviceOpenDaylight():
 
         network_map = network['network-topology']['topology']
         # look to see if vm_id exists in network dict
+        # FIXME there is a bug here with multiple OVS instances + same bridge name
         for sf in sfs_dict:
             br_dict = self.find_ovs_br(sfs_dict[sf], network_map)
             LOG.debug(_('br_dict from find_ovs %s'), br_dict)
@@ -414,11 +428,42 @@ class DeviceOpenDaylight():
 
         return br_mapping
 
+    def find_existing_sffs(self, bridge_mapping):
+        """
+        Checks for previous SFF configured for this OVS
+        :param bridge_mapping: OVS dictionary to check if SFF exists
+        :return: dictionary of SFF or None
+        """
+
+        sff_response = self.get_odl_sff()
+        if sff_response.status_code != 200:
+            LOG.warn(_('Unable to get SFFs from ODL'))
+            return
+
+        try:
+            odl_sff_list = sff_response.json()['service-function-forwarders']['service-function-forwarder']
+        except KeyError:
+            return
+        sff_br_dict = dict()
+        for br in bridge_mapping.keys():
+            for sff in odl_sff_list:
+                if sff['ip-mgmt-address'] == bridge_mapping[br]['ovs_ip']:
+                    # for now we assume that SFF would only be br-int
+                    # thus there cannot be another ovs bridge name
+                    # so we don't check, may change this in future
+                    sff_br_dict[br] = sff
+                    continue
+
+        if sff_br_dict:
+            return sff_br_dict
+
     @staticmethod
-    def create_sff_json(bridge_mapping, sfs_dict):
+    def create_sff_json(bridge_mapping, sfs_dict, prev_sff_dict=None):
         """
         Creates JSON request body for ODL SFC
         :param bridge_mapping: dictionary of sf to ovs bridges
+        :param sfs_dict: dictionary of all SFs on the bridge
+        :param prev_sff_dict: if exists, update previous SFF
         :return: dictionary with formatted fields
         """
         dp_loc = 'sf-data-plane-locator'
@@ -465,10 +510,32 @@ class DeviceOpenDaylight():
                 temp_sf_dict['sff-sf-data-plane-locator'] = temp_sff_sf_dp_loc
                 sf_dicts.append(temp_sf_dict)
 
-            # combine sf list into sff dict
-            temp_sff = dict({'name': temp_sff_dp_loc['name']}.items()
-                            + {'sff-data-plane-locator': [temp_sff_dp_loc]}.items()
-                            + {'service-function-dictionary': sf_dicts}.items())
+            # if exits, use current sff, and only update sfs
+            if prev_sff_dict and br in prev_sff_dict.keys():
+                temp_sff = prev_sff_dict[br]
+                prev_sff_sf_list = temp_sff['service-function-dictionary']
+
+                for new_sf in sf_dicts:
+                    new_sf_updated = False
+                    for index, sf in enumerate(prev_sff_sf_list):
+                        if sf['name'] == new_sf['name']:
+                            # update/replace old sf, if they were same name
+                            temp_sff['service-function-dictionary'][index] = new_sf
+                            new_sf_updated = True
+                            break
+
+                    if not new_sf_updated:
+                        temp_sff['service-function-dictionary'].append(new_sf)
+
+            else:
+                # combine sf list into sff dict
+                temp_sff = dict({'name': temp_sff_dp_loc['name']}.items()
+                                + {'sff-data-plane-locator': [temp_sff_dp_loc]}.items()
+                                + {'service-function-dictionary': sf_dicts}.items())
+                temp_sff['ip-mgmt-address'] = bridge_mapping[br]['ovs_ip']
+                temp_sff['service-node'] = ''
+                temp_sff['service-function-forwarder-ovs:ovs-bridge'] = temp_bridge_dict
+
             sff_list.append(temp_sff)
 
         LOG.debug(_('SFF list output is %s'), sff_list)
@@ -527,7 +594,6 @@ class DeviceOpenDaylight():
             if rsp_result.status_code != 200 or rsp_result.json()['output']['result']:
                 LOG.exception(_('Unable to delete RSP'))
                 raise ODLRSPDeleteFailed
-                return
 
         return
 
