@@ -30,8 +30,8 @@ if is_service_enabled tacker; then
         start_tacker_api
         echo_summary "Installing tacker horizon"
         tacker_horizon_install
-        echo_summary "Setup initial tacker network"
-        tacker_create_initial_network
+        #echo_summary "Setup initial tacker network"
+        #tacker_create_initial_network
     fi
 
     if [[ "$1" == "unstack" ]]; then

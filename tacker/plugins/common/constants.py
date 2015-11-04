@@ -20,12 +20,14 @@ CORE = "CORE"
 DUMMY = "DUMMY"
 VNFM = "VNFM"
 SFC = "SFC"
+SFC_CLASSIFIER = "SFCClassifier"
 
 COMMON_PREFIXES = {
     CORE: "",
     DUMMY: "/dummy_svc",
     VNFM: "",
     SFC: "",
+    SFC_CLASSIFIER: "",
 }
 
 # Service operation status constants
