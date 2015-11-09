@@ -73,6 +73,16 @@ class NetVirtSFC():
                        'but netvirtsfc driver is loaded...'))
         self.sff_counter = 1
         self.config_acl_url = '/restconf/config/ietf-access-control-list:access-lists/{}/'
+        # translates abstract match criteria to ODL netvirt specific
+        self.match_translation = {'source_ip_prefix': 'source-ipv4-network',
+                                  'dest_ip_prefix': 'destination-ipv4-network',
+                                  'source_port': {'source-port-range': ['lower-port',
+                                                                        'upper-port']
+                                                  },
+                                  'dest_port': {'destination-port-range': ['lower-port',
+                                                                           'upper-port']
+                                                }
+                                  }
 
     def get_type(self):
         return 'netvirtsfc'
@@ -103,7 +113,7 @@ class NetVirtSFC():
         :param rsp_id: rendered service path instance ID
         :return: sfcc_id: classifier resource ID
         """
-        sfcc_json =_build_classifier_json(sfcc_dict, rsp_id)
+        sfcc_json = self._build_classifier_json(sfcc_dict, rsp_id)
         sfcc_name = sfcc_dict['name']
         sfcc_result = self.send_rest(sfcc_json, 'put', self.config_acl_url.format(sfcc_name))
 
@@ -122,3 +132,35 @@ class NetVirtSFC():
     def delete_sfc_classifier(self, classifier_id):
         sfcc_result = self.send_rest(None, 'delete', self.config_acl_url.format(classifier_id))
         return sfcc_result
+
+    @log.log
+    def _build_classifier_json(self, sfcc_dict, rsp_id):
+        sfcc_json = {'access-lists':
+                     {'acl': [
+                      {'acl-name': sfcc_dict['name'],
+                       'access-list-entries': dict(),
+                       }]}}
+
+        sfcc_ace = {'ace': [
+                    {'rule-name': sfcc_dict['name'],
+                     'matches': dict(),
+                     'actions': {'netvirt-sfc-acl:redirect-sfc': rsp_id}
+                     }]}
+
+        match_dict = dict()
+        for key, value in sfcc_dict['acl-match_criteria'].iteritems():
+            if value:
+                if key in self.match_translation:
+                    new_key = self.match_translation['key']
+                    if new_key is dict():
+                        outer_key = new_key.keys()[0]
+                        for inner_key in new_key.itervalues().next():
+                            match_dict[outer_key][inner_key] = value
+                    else:
+                        match_dict[new_key] = value
+                else:
+                    match_dict[key] = value
+
+        sfcc_ace['ace'][0]['matches'] = match_dict
+        sfcc_json['access-lists']['acl'][0]['matches'] = sfcc_ace
+        return sfcc_json
