@@ -467,13 +467,23 @@ class DeviceOpenDaylight():
         :return: dictionary with formatted fields
         """
         dp_loc = 'sf-data-plane-locator'
+        sff_opts = {"remote-ip": "flow",
+                    "dst-port": "6633",
+                    "key": "flow",
+                    "nsp": "flow",
+                    "nsi": "flow",
+                    "nshc1": "flow",
+                    "nshc2": "flow",
+                    "nshc3": "flow",
+                    "nshc4": "flow"}
         sff_dp_loc = {'name': '',
                       'data-plane-locator':
                           {
                           'transport': 'service-locator:vxlan-gpe',
                           'port': '',
                           'ip': ''
-                          }
+                          },
+                      'service-function-forwarder-ovs:ovs-options': sff_opts
                       }
         sf_template = {'name': '',
                        'type': ''
@@ -556,19 +566,23 @@ class DeviceOpenDaylight():
                 for node_entry in net['node']:
                     if 'termination-point' in node_entry:
                         for endpoint in node_entry['termination-point']:
-                            if 'ovsdb:interface-external-ids' in endpoint:
+                            if bridge_dict:
+                                break
+                            elif 'ovsdb:interface-external-ids' in endpoint:
                                 for external_id in endpoint['ovsdb:interface-external-ids']:
                                     if 'external-id-value' in external_id:
                                         if external_id['external-id-value'] == sf_id:
                                             print 'Found!'
                                             print node_entry['ovsdb:bridge-name']
                                             bridge_dict['br_name'] = node_entry['ovsdb:bridge-name']
+                                            full_node_id = node_entry['node-id']
+                                            node_id = full_node_id.strip('/bridge/%s' % bridge_dict['br_name'])
                                             break
                                         else:
                                             print 'Not Found'
                 if 'br_name' in bridge_dict:
                     for node_entry in net['node']:
-                        if 'ovsdb:connection-info' in node_entry:
+                        if node_entry['node-id'] == node_id and 'ovsdb:connection-info' in node_entry:
                             bridge_dict['ovs_ip'] = node_entry['ovsdb:connection-info']['remote-ip']
                             bridge_dict['ovs_port'] = node_entry['ovsdb:connection-info']['remote-port']
                             break
@@ -591,7 +605,7 @@ class DeviceOpenDaylight():
             rsp_dict = {'input': {'name': str(instance)}}
             rsp_result = self.delete_odl_rsp(rsp_dict)
 
-            if rsp_result.status_code != 200 or rsp_result.json()['output']['result']:
+            if rsp_result.status_code != 200:
                 LOG.exception(_('Unable to delete RSP'))
                 raise ODLRSPDeleteFailed
 
