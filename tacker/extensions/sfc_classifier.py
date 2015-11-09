@@ -173,7 +173,7 @@ RESOURCE_ATTRIBUTE_MAP = {
         'match': {
             'allow_post': True,
             'allow_put': False,
-            'validate': {'type:acl_match_list'},
+            'validate': {'type:acl_dict'},
             'is_visible': True,
             'default': '',
         }
