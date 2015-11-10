@@ -190,6 +190,19 @@ def _validate_ip_address(data, valid_values=None):
         return msg
 
 
+def _validate_port(data, valid_values=None):
+    return _validate_range(data, valid_values=[1, 66535])
+
+
+def _validate_ip_network(data, valid_values=None):
+    try:
+        netaddr.IPNetwork(_validate_no_whitespace(data))
+    except Exception:
+        msg = _("'%s' is not a valid IP network") % data
+        LOG.debug(msg)
+        return msg
+
+
 def _validate_ip_pools(data, valid_values=None):
     """Validate that start and end IP addresses are present.
 
@@ -585,7 +598,9 @@ validators = {'type:dict': _validate_dict,
               'type:uuid_or_none': _validate_uuid_or_none,
               'type:uuid_list': _validate_uuid_list,
               'type:values': _validate_values,
-              'type:boolean': _validate_boolean}
+              'type:boolean': _validate_boolean,
+              'type:port': _validate_port,
+              'type:ip_network': _validate_ip_network}
 
 # Define constants for base resource name
 

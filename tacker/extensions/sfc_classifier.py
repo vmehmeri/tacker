@@ -41,8 +41,10 @@ class InfraDriverNotSpecified(exceptions.InvalidInput):
 class ClassifierNotFound(exceptions.NotFound):
     message = _('Classifier %(sfcc_id)s could not be found')
 
+
 class ClassifierInUse(exceptions.InUse):
     message = _('SFC Classifier%(sfcc_id)s is still in use')
+
 
 class SFCNotFound(exceptions.NotFound):
     message = _('SFC %(sfc_id)s not found to attach to')
@@ -61,17 +63,17 @@ class ClassifierCreateWaitFailed(exceptions.TackerException):
 
 
 def _validate_acl_match_criteria(data, valid_values=None):
-    if not isinstance(data, list):
-        msg = _("invalid data format for acl match list: '%s'") % data
+    if not isinstance(data, dict):
+        msg = _("invalid data format for acl match dict: '%s'") % data
         LOG.debug(msg)
         return msg
 
     key_specs = {
-        'source_mac': {'type:mac': None},
-        'dest_mac': {'type:mac': None},
+        'source_mac': {'type:mac_address': None},
+        'dest_mac': {'type:mac_address': None},
         'ethertype': {'type:string': None},
-        'source_ip_prefix': {'type:ip': None},
-        'dest_ip_prefix': {'type:ip': None},
+        'source_ip_prefix': {'type:ip_network': None},
+        'dest_ip_prefix': {'type:ip_network': None},
         'source_port': {'type:port': None,
                         'convert_to': attr.convert_to_int},
         'dest_port': {'type:port': None,
@@ -80,11 +82,10 @@ def _validate_acl_match_criteria(data, valid_values=None):
                      'convert_to': attr.convert_to_int}
     }
 
-    for criteria in data:
-        msg = attr._validate_dict_or_empty(criteria, key_specs=key_specs)
-        if msg:
-            LOG.debug(msg)
-            return msg
+    msg = attr._validate_dict_or_empty(criteria, key_specs=key_specs)
+    if msg:
+        LOG.debug(msg)
+        return msg
 
 attr.validators['type:acl_dict'] = _validate_acl_match_criteria
 
@@ -115,7 +116,7 @@ RESOURCE_ATTRIBUTE_MAP = {
         'chain': {
             'allow_post': True,
             'allow_put': True,
-            'validate': {'type:list': None},
+            'validate': {'type:string': None},
             'is_visible': True,
             'default': '',
         },
@@ -131,7 +132,7 @@ RESOURCE_ATTRIBUTE_MAP = {
             'allow_put': False,
             'validate': {'type:string': None},
             'is_visible': True,
-            'default': 'opendaylight',
+            'default': 'netvirtsfc',
         },
         'instance_id': {
             'allow_post': False,
@@ -172,10 +173,17 @@ RESOURCE_ATTRIBUTE_MAP = {
         },
         'match': {
             'allow_post': True,
-            'allow_put': False,
-            'validate': {'type:acl_dict'},
+            'allow_put': True,
+            'validate': {'type:acl_dict': None},
             'is_visible': True,
-            'default': '',
+            'default': {},
+        },
+        'acl_match_criteria': {
+            'allow_post': True,
+            'allow_put': True,
+            'validate': {'type:acl_dict': None},
+            'is_visible': True,
+            'default': {},
         }
     },
 }
@@ -210,7 +218,7 @@ class Sfc_classifier(extensions.ExtensionDescriptor):
         plural_mappings['sfc_classifiers'] = 'sfc_classifier'
         attr.PLURALS.update(plural_mappings)
         return resource_helper.build_resource_info(
-            plural_mappings, RESOURCE_ATTRIBUTE_MAP, constants.SFC,
+            plural_mappings, RESOURCE_ATTRIBUTE_MAP, constants.SFC_CLASSIFIER,
             translate_name=True)
 
     @classmethod
@@ -235,7 +243,7 @@ class SFCCPluginBase(NFVPluginBase):
         return constants.SFC_CLASSIFIER
 
     def get_plugin_description(self):
-        return 'Tacker SFC plugin'
+        return 'Tacker SFC Classifier plugin'
 
     @abc.abstractmethod
     def get_sfc_classifiers(self, context, filters=None, fields=None):

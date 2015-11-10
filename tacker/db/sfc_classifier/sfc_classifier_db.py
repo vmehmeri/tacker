@@ -70,8 +70,8 @@ class SFCClassifier(model_base.BASE, models_v1.HasTenant):
     # link to acl match criteria db table
     acl_match_criteria = orm.relationship('ACLMatchCriteria')
 
-    # chain to attach classifier to
-    chain_id = sa.Column(sa.String(255), nullable=True)
+    # chain id to attach classifier to
+    chain = sa.Column(sa.String(255), nullable=True)
 
 
 class SFCCAttribute(model_base.BASE, models_v1.HasId):
@@ -136,13 +136,13 @@ class SFCCPluginDb(sfc_classifier.SFCCPluginBase, db_base.CommonDbMixin):
     def _create_sfc_classifier_pre(self, context, sfcc):
         sfcc = sfcc['sfc_classifier']
         LOG.debug(_('sfc classifier %s'), sfcc)
-        tenant_id = self._get_tenant_id_for_create(context, sfc)
+        tenant_id = self._get_tenant_id_for_create(context, sfcc)
         infra_driver = sfcc.get('infra_driver')
         name = sfcc.get('name')
         description = sfcc.get('description')
         sfcc_id = sfcc.get('id') or str(uuid.uuid4())
         attributes = sfcc.get('attributes', {})
-        acl_match_criteria = sfcc.get('acl_match_criteria')
+        acl_match_criteria = dict(sfcc.get('match'))
         chain = sfcc.get('chain')
 
         with context.session.begin(subtransactions=True):
@@ -162,18 +162,16 @@ class SFCCPluginDb(sfc_classifier.SFCCPluginBase, db_base.CommonDbMixin):
                     key=key, value=value)
                 context.session.add(arg)
 
-            LOG.debug(_('acl_match %s'), service_context)
-            for match_entry in acl_match_criteria:
-                LOG.debug(_('match_entry %s'), match_entry)
-                source_mac = match_entry.get('source_mac')
-                dest_mac = match_entry.get('dest_mac')
-                ethertype = match_entry.get('ethertype')
-                source_ip_prefix = match_entry.get('source_ip_prefix')
-                dest_ip_prefix = match_entry.get('dest_ip_prefix')
-                source_port = match_entry.get('source_port')
-                dest_port = match_entry.get('dest_port')
-                protocol = match_entry.get('protocol')
-                match_db_table = ACLMatchCriteria(
+            LOG.debug(_('acl_match %s'), acl_match_criteria)
+            source_mac = acl_match_criteria.get('source_mac')
+            dest_mac = acl_match_criteria.get('dest_mac')
+            ethertype = acl_match_criteria.get('ethertype')
+            source_ip_prefix = acl_match_criteria.get('source_ip_prefix')
+            dest_ip_prefix = acl_match_criteria.get('dest_ip_prefix')
+            source_port = acl_match_criteria.get('source_port')
+            dest_port = acl_match_criteria.get('dest_port')
+            protocol = acl_match_criteria.get('protocol')
+            match_db_table = ACLMatchCriteria(
                     id=str(uuid.uuid4()), sfcc_id=sfcc_id,
                     source_mac=source_mac,
                     dest_mac=dest_mac, ethertype=ethertype,
@@ -181,7 +179,7 @@ class SFCCPluginDb(sfc_classifier.SFCCPluginBase, db_base.CommonDbMixin):
                     dest_ip_prefix=dest_ip_prefix,
                     source_port=source_port, dest_port=dest_port,
                     protocol=protocol)
-                context.session.add(match_db_table)
+            context.session.add(match_db_table)
 
         return self._make_sfc_classifier_dict(sfcc_db)
 
@@ -242,14 +240,14 @@ class SFCCPluginDb(sfc_classifier.SFCCPluginBase, db_base.CommonDbMixin):
         return dict((arg.key, arg.value) for arg in sfcc_attrs_db)
 
     def _make_acl_match_dict(self, acl_match_db):
-        key_list = ('id', 'source_mac', 'dest_mac', 'ethertype', 'source_ip_prefix',
+        key_list = ('source_mac', 'dest_mac', 'ethertype', 'source_ip_prefix',
                     'dest_ip_prefix', 'source_port', 'dest_port', 'protocol')
-        return [self._fields(dict((key, entry[key]) for key in key_list), None)
-                for entry in acl_match_db]
+        return {key: entry[key] for key in key_list for entry in acl_match_db if entry[key]}
 
     def _make_sfc_classifier_dict(self, sfcc_db, fields=None):
         LOG.debug(_('sfcc_db %s'), sfcc_db)
         LOG.debug(_('sfcc_db attributes %s'), sfcc_db.attributes)
+        LOG.debug(_('sfcc_db match %s'), sfcc_db.acl_match_criteria)
         res = {
             'attributes': self._make_sfc_classifier_attrs_dict(sfcc_db.attributes),
             'acl_match_criteria':
@@ -345,6 +343,8 @@ class SFCCPluginDb(sfc_classifier.SFCCPluginBase, db_base.CommonDbMixin):
             else:
                 (self._model_query(context, SFCCAttribute).
                  filter(SFCCAttribute.sfcc_id == sfcc_id).delete())
+                (self._model_query(context, ACLMatchCriteria).
+                 filter(ACLMatchCriteria.sfcc_id == sfcc_id).delete())
                 query.delete()
 
     # reference implementation. needs to be overridden by subclass

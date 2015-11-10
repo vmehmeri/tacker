@@ -108,9 +108,9 @@ class SFCCPlugin(sfc_classifier_db.SFCCPluginDb):
 
         return sfcc_dict
 
-    def create_sfc_classifier(self, context, sfcc):
-        self.sfc_classifier_exists(context, sfcc['sfc_classifier']['name'])
-        sfcc_dict = self._create_sfc_classifier(context, sfcc)
+    def create_sfc_classifier(self, context, sfc_classifier):
+        self.sfc_classifier_exists(context, sfc_classifier['sfc_classifier']['name'])
+        sfcc_dict = self._create_sfc_classifier(context, sfc_classifier)
         # TODO fix this or remove it, not sure if ODL is synchronous here
         #def create_sfc_wait():
         #    self._create_sfc_wait(context, sfc_dict)

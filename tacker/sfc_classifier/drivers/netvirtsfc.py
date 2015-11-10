@@ -106,14 +106,14 @@ class NetVirtSFC():
         return r
 
     @log.log
-    def create_sfc_classifier(self, sfcc_dict, rsp_id):
+    def create_sfc_classifier(self, sfcc_dict, chain_instance_id):
         """
         :param sfcc_dict: dictionary that includes match criteria in
                           classifier request
-        :param rsp_id: rendered service path instance ID
+        :param chain_instance_id: rendered service path instance ID
         :return: sfcc_id: classifier resource ID
         """
-        sfcc_json = self._build_classifier_json(sfcc_dict, rsp_id)
+        sfcc_json = self._build_classifier_json(sfcc_dict, chain_instance_id)
         sfcc_name = sfcc_dict['name']
         sfcc_result = self.send_rest(sfcc_json, 'put', self.config_acl_url.format(sfcc_name))
 
@@ -129,8 +129,8 @@ class NetVirtSFC():
         raise NotImplementedError
 
     @log.log
-    def delete_sfc_classifier(self, classifier_id):
-        sfcc_result = self.send_rest(None, 'delete', self.config_acl_url.format(classifier_id))
+    def delete_sfc_classifier(self, instance_id):
+        sfcc_result = self.send_rest(None, 'delete', self.config_acl_url.format(instance_id))
         return sfcc_result
 
     @log.log
@@ -148,12 +148,13 @@ class NetVirtSFC():
                      }]}
 
         match_dict = dict()
-        for key, value in sfcc_dict['acl-match_criteria'].iteritems():
+        for key, value in sfcc_dict['acl_match_criteria'].iteritems():
             if value:
                 if key in self.match_translation:
-                    new_key = self.match_translation['key']
-                    if new_key is dict():
+                    new_key = self.match_translation[key]
+                    if isinstance(new_key, dict):
                         outer_key = new_key.keys()[0]
+                        match_dict[outer_key] = dict()
                         for inner_key in new_key.itervalues().next():
                             match_dict[outer_key][inner_key] = value
                     else:
