@@ -58,6 +58,10 @@ class NetVirtClassifierCreateFailed(exceptions.TackerException):
     message = _('NetVirt ODL Classifier could not be created')
 
 
+class NetVirtClassifierDeleteFailed(exceptions.TackerException):
+    message = _('NetVirt ODL Classifier could not be deleted')
+
+
 class NetVirtSFC():
 
     """OpenDaylight netvirt driver for SFC Classification."""
@@ -72,7 +76,7 @@ class NetVirtSFC():
             LOG.warn(_('Unable to find opendaylight config in conf file'
                        'but netvirtsfc driver is loaded...'))
         self.sff_counter = 1
-        self.config_acl_url = '/restconf/config/ietf-access-control-list:access-lists/{}/'
+        self.config_acl_url = '/restconf/config/ietf-access-control-list:access-lists/acl/{}/'
         # translates abstract match criteria to ODL netvirt specific
         self.match_translation = {'source_ip_prefix': 'source-ipv4-network',
                                   'dest_ip_prefix': 'destination-ipv4-network',
@@ -131,15 +135,19 @@ class NetVirtSFC():
     @log.log
     def delete_sfc_classifier(self, instance_id):
         sfcc_result = self.send_rest(None, 'delete', self.config_acl_url.format(instance_id))
+
+        if sfcc_result.status_code != 200:
+            LOG.exception(_('Unable to delete NetVirt Classifier'))
+            raise NetVirtClassifierDeleteFailed
+
         return sfcc_result
 
     @log.log
     def _build_classifier_json(self, sfcc_dict, rsp_id):
-        sfcc_json = {'access-lists':
-                     {'acl': [
-                      {'acl-name': sfcc_dict['name'],
+        sfcc_json = {'acl': [
+                     {'acl-name': sfcc_dict['name'],
                        'access-list-entries': dict(),
-                       }]}}
+                      }]}
 
         sfcc_ace = {'ace': [
                     {'rule-name': sfcc_dict['name'],
@@ -163,5 +171,5 @@ class NetVirtSFC():
                     match_dict[key] = value
 
         sfcc_ace['ace'][0]['matches'] = match_dict
-        sfcc_json['access-lists']['acl'][0]['matches'] = sfcc_ace
+        sfcc_json['acl'][0]['access-list-entries'] = sfcc_ace
         return sfcc_json

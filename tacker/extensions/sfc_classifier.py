@@ -82,7 +82,7 @@ def _validate_acl_match_criteria(data, valid_values=None):
                      'convert_to': attr.convert_to_int}
     }
 
-    msg = attr._validate_dict_or_empty(criteria, key_specs=key_specs)
+    msg = attr._validate_dict_or_empty(data, key_specs=key_specs)
     if msg:
         LOG.debug(msg)
         return msg
