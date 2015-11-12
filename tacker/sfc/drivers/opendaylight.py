@@ -267,10 +267,11 @@ class DeviceOpenDaylight():
 
         LOG.debug(_('OVS MAP:%s'), ovs_mapping)
 
-        # Go back and update sf SFF
+        # Go back and update sf SFF, tap port
         for br_name in ovs_mapping.keys():
             for sf_id in ovs_mapping[br_name]['sfs']:
                 sfs_json[sf_id]['sf-data-plane-locator'][0]['service-function-forwarder'] = ovs_mapping[br_name]['sff_name']
+                sfs_json[sf_id]['sf-data-plane-locator'][0]['name'] = ovs_mapping[br_name][sf_id]['tap_port']
                 LOG.debug(_('SF updated with SFF:%s'), ovs_mapping[br_name]['sff_name'])
         # try to create SFs
         for (x, y) in sfs_json.items():
@@ -417,11 +418,15 @@ class DeviceOpenDaylight():
                 br_name = br_dict['br_name']
                 if br_name in br_mapping:
                     br_mapping[br_name]['sfs'] = [sf]+br_mapping[br_name]['sfs']
+                    br_mapping[br_name][sf] = dict()
+                    br_mapping[br_name][sf]['tap_port'] = br_dict['tap_port']
                 else:
                     br_mapping[br_name] = dict()
                     br_mapping[br_name]['sfs'] = [sf]
                     br_mapping[br_name]['ovs_ip'] = br_dict['ovs_ip']
                     br_mapping[br_name]['sff_name'] = 'sff' + str(self.sff_counter)
+                    br_mapping[br_name][sf] = dict()
+                    br_mapping[br_name][sf]['tap_port'] = br_dict['tap_port']
                     self.sff_counter += 1
             else:
                 LOG.debug(_('Could not find OVS bridge for %s'), sf)
@@ -577,6 +582,7 @@ class DeviceOpenDaylight():
                                             bridge_dict['br_name'] = node_entry['ovsdb:bridge-name']
                                             full_node_id = node_entry['node-id']
                                             node_id = full_node_id.strip('/bridge/%s' % bridge_dict['br_name'])
+                                            bridge_dict['tap_port'] = endpoint['ovsdb:name']
                                             break
                                         else:
                                             print 'Not Found'
@@ -586,7 +592,7 @@ class DeviceOpenDaylight():
                             bridge_dict['ovs_ip'] = node_entry['ovsdb:connection-info']['remote-ip']
                             bridge_dict['ovs_port'] = node_entry['ovsdb:connection-info']['remote-port']
                             break
-        if all(key in bridge_dict for key in ('br_name', 'ovs_ip', 'ovs_port')):
+        if all(key in bridge_dict for key in ('br_name', 'ovs_ip', 'ovs_port', 'tap_port')):
             return bridge_dict
 
         return

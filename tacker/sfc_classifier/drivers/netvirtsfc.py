@@ -58,6 +58,10 @@ class NetVirtClassifierCreateFailed(exceptions.TackerException):
     message = _('NetVirt ODL Classifier could not be created')
 
 
+class NetVirtClassifierACLCreateFailed(exceptions.TackerException):
+    message = _('NetVirt ODL ACL could not be created')
+
+
 class NetVirtClassifierDeleteFailed(exceptions.TackerException):
     message = _('NetVirt ODL Classifier could not be deleted')
 
@@ -76,7 +80,8 @@ class NetVirtSFC():
             LOG.warn(_('Unable to find opendaylight config in conf file'
                        'but netvirtsfc driver is loaded...'))
         self.sff_counter = 1
-        self.config_acl_url = '/restconf/config/ietf-access-control-list:access-lists/acl/{}/'
+        self.config_acl_url = 'restconf/config/ietf-access-control-list:access-lists/acl/{}'
+        self.config_netvirtsfc_url = 'restconf/config/netvirt-sfc-classifier:classifiers/classifier/{}'
         # translates abstract match criteria to ODL netvirt specific
         self.match_translation = {'source_ip_prefix': 'source-ipv4-network',
                                   'dest_ip_prefix': 'destination-ipv4-network',
@@ -117,9 +122,16 @@ class NetVirtSFC():
         :param chain_instance_id: rendered service path instance ID
         :return: sfcc_id: classifier resource ID
         """
-        sfcc_json = self._build_classifier_json(sfcc_dict, chain_instance_id)
+        acl_json = self._build_acl_json(sfcc_dict, chain_instance_id)
         sfcc_name = sfcc_dict['name']
-        sfcc_result = self.send_rest(sfcc_json, 'put', self.config_acl_url.format(sfcc_name))
+        acl_result = self.send_rest(acl_json, 'put', self.config_acl_url.format(sfcc_name))
+
+        if acl_result.status_code != 200:
+            LOG.exception(_('Unable to create NetVirt ACL'))
+            raise NetVirtClassifierACLCreateFailed
+
+        sfcc_json = self._build_classifier_json(sfcc_name)
+        sfcc_result = self.send_rest(sfcc_json, 'put', self.config_netvirtsfc_url.format(sfcc_name))
 
         if sfcc_result.status_code != 200:
             LOG.exception(_('Unable to create NetVirt Classifier'))
@@ -134,7 +146,7 @@ class NetVirtSFC():
 
     @log.log
     def delete_sfc_classifier(self, instance_id):
-        sfcc_result = self.send_rest(None, 'delete', self.config_acl_url.format(instance_id))
+        sfcc_result = self.send_rest(None, 'delete', self.config_netvirtsfc_url.format(instance_id))
 
         if sfcc_result.status_code != 200:
             LOG.exception(_('Unable to delete NetVirt Classifier'))
@@ -143,16 +155,16 @@ class NetVirtSFC():
         return sfcc_result
 
     @log.log
-    def _build_classifier_json(self, sfcc_dict, rsp_id):
+    def _build_acl_json(self, sfcc_dict, rsp_id):
         sfcc_json = {'acl': [
                      {'acl-name': sfcc_dict['name'],
-                       'access-list-entries': dict(),
+                      'access-list-entries': dict(),
                       }]}
 
         sfcc_ace = {'ace': [
                     {'rule-name': sfcc_dict['name'],
                      'matches': dict(),
-                     'actions': {'netvirt-sfc-acl:redirect-sfc': rsp_id}
+                     'actions': {'netvirt-sfc-acl:redirect-rsp': rsp_id}
                      }]}
 
         match_dict = dict()
@@ -173,3 +185,12 @@ class NetVirtSFC():
         sfcc_ace['ace'][0]['matches'] = match_dict
         sfcc_json['acl'][0]['access-list-entries'] = sfcc_ace
         return sfcc_json
+
+    def _build_classifier_json(self, sfcc_name):
+        cls_json = {'classifier': [
+            {'name': sfcc_name,
+            'acl': sfcc_name,
+            }
+        ]}
+
+        return cls_json
