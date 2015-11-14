@@ -504,7 +504,7 @@ class DeviceOpenDaylight():
         for br in bridge_mapping.keys():
             # create sff data-plane locator
             temp_sff_dp_loc = sff_dp_loc.copy()
-            temp_sff_dp_loc['name'] = bridge_mapping[br]['sff_name']
+            temp_sff_dp_loc['name'] = 'vxgpe'
             temp_sff_dp_loc['data-plane-locator']['port'] = '6633'
             temp_sff_dp_loc['data-plane-locator']['ip'] = bridge_mapping[br]['ovs_ip']
             # temp_sff_dp_loc['service-function-forwarder-ovs:ovs-bridge'] = br
@@ -544,7 +544,7 @@ class DeviceOpenDaylight():
 
             else:
                 # combine sf list into sff dict
-                temp_sff = dict({'name': temp_sff_dp_loc['name']}.items()
+                temp_sff = dict({'name': bridge_mapping[br]['sff_name']}.items()
                                 + {'sff-data-plane-locator': [temp_sff_dp_loc]}.items()
                                 + {'service-function-dictionary': sf_dicts}.items())
                 temp_sff['ip-mgmt-address'] = bridge_mapping[br]['ovs_ip']

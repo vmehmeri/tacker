@@ -164,7 +164,7 @@ class NetVirtSFC():
         sfcc_ace = {'ace': [
                     {'rule-name': sfcc_dict['name'],
                      'matches': dict(),
-                     'actions': {'netvirt-sfc-acl:redirect-rsp': rsp_id}
+                     'actions': {'netvirt-sfc-acl:rsp-name': rsp_id}
                      }]}
 
         match_dict = dict()
@@ -189,8 +189,8 @@ class NetVirtSFC():
     def _build_classifier_json(self, sfcc_name):
         cls_json = {'classifier': [
             {'name': sfcc_name,
-            'acl': sfcc_name,
-            }
+             'acl': sfcc_name,
+             }
         ]}
 
         return cls_json
