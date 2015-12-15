@@ -490,13 +490,17 @@ class DeviceOpenDaylight():
                           },
                       'service-function-forwarder-ovs:ovs-options': sff_opts
                       }
-        sf_template = {'name': '',
-                       'type': ''
-                       }
-        sff_sf_dp_loc = {'service-function-forwarder-ovs:ovs-bridge': '',
-                         'transport': 'service-locator:vxlan-gpe',
-                         'port': '',
-                         'ip': ''
+        sf_template = {'name': ''}
+                       #'type': ''
+                       #}
+#        sff_sf_dp_loc = {'service-function-forwarder-ovs:ovs-bridge': '',
+#                         'transport': 'service-locator:vxlan-gpe',
+#                         'port': '',
+#                         'ip': ''
+#                         }
+
+        sff_sf_dp_loc = {'sff-dpl-name': '',
+                         'sf-dpl-name': ''
                          }
 
         sff_list = []
@@ -514,18 +518,17 @@ class DeviceOpenDaylight():
                 # build sf portion of dict
                 temp_sf_dict = sf_template.copy()
                 temp_sf_dict['name'] = sfs_dict[sf]['name']
-                temp_sf_dict['type'] = sfs_dict[sf]['type']
+                #temp_sf_dict['type'] = sfs_dict[sf]['type']
                 # build sf data-plane locator
                 temp_sff_sf_dp_loc = sff_sf_dp_loc.copy()
-                temp_sff_sf_dp_loc['service-function-forwarder-ovs:ovs-bridge'] = temp_bridge_dict
+                temp_sff_sf_dp_loc['sff-dpl-name'] = 'vxgpe'
                 # trozet hardcoding first data-plane-locator index
-                temp_sff_sf_dp_loc['port'] = sfs_dict[sf][dp_loc][0]['port']
-                temp_sff_sf_dp_loc['ip'] = sfs_dict[sf][dp_loc][0]['ip']
+                temp_sff_sf_dp_loc['sf-dpl-name'] = sfs_dict[sf][dp_loc][0]['name']
 
                 temp_sf_dict['sff-sf-data-plane-locator'] = temp_sff_sf_dp_loc
                 sf_dicts.append(temp_sf_dict)
 
-            # if exits, use current sff, and only update sfs
+            # if exists, use current sff, and only update sfs
             if prev_sff_dict and br in prev_sff_dict.keys():
                 temp_sff = prev_sff_dict[br]
                 prev_sff_sf_list = temp_sff['service-function-dictionary']
