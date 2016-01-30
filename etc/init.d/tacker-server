@@ -24,6 +24,21 @@ if test -f /etc/default/tacker-server; then
   . /etc/default/tacker-server
 fi
 
+log_daemon_msg () {
+    # Dummy function to be replaced by LSB library.
+
+    echo $@
+}
+
+log_end_msg () {
+    # Dummy function to be replaced by LSB library.
+
+    if test "$1" != "0"; then
+      echo "Error with $DESCRIPTION: $NAME"
+    fi
+    return $1
+}
+
 mkdir -p /var/run/tacker
 mkdir -p /var/log/tacker
 
@@ -40,13 +55,13 @@ case "$1" in
   start)
     test "$ENABLED" = "true" || exit 0
     log_daemon_msg "Starting tacker server" "tacker-server"
-    start-stop-daemon -Sbmv --pidfile $PIDFILE --chdir $DAEMON_DIR --exec $DAEMON -- $DAEMON_ARGS
+    start_daemon -p $PIDFILE  /bin/tacker-server $DAEMON_ARGS -v -d --config-file /etc/tacker/tacker.conf
     log_end_msg $?
     ;;
   stop)
     test "$ENABLED" = "true" || exit 0
     log_daemon_msg "Stopping tacker server" "tacker-server"
-    start-stop-daemon --stop --oknodo --pidfile ${PIDFILE}
+    killproc -p ${PIDFILE}
     log_end_msg $?
     ;;
   restart|force-reload)
