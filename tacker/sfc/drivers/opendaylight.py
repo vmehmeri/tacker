@@ -231,7 +231,7 @@ class DeviceOpenDaylight():
             dp_loc_dict = dict()
             sf_id = sf
             sf_json['name'] = vnf_dict[sf]['name']
-            dp_loc_dict['name'] = 'vxlan'
+            dp_loc_dict['name'] = vnf_dict[sf]['name']+'-dpl'
             dp_loc_dict['ip'] = vnf_dict[sf]['ip']
 
             # trozet FIXME right now we hardcode 6633
@@ -247,6 +247,7 @@ class DeviceOpenDaylight():
             # since this is a chicken and egg problem between SFF, and SF creation
             # we give a dummy value then figure out later
             dp_loc_dict['service-function-forwarder'] = 'dummy'
+            dp_loc_dict['service-function-ovs:ovs-port'] = {'port-id': ''}
             sf_json['nsh-aware'] = 'true'
             sf_json['ip-mgmt-address'] = vnf_dict[sf]['ip']
             sf_json['type'] = "service-function-type:%s" % (vnf_dict[sf]['type'])
@@ -271,7 +272,7 @@ class DeviceOpenDaylight():
         for br_name in ovs_mapping.keys():
             for sf_id in ovs_mapping[br_name]['sfs']:
                 sfs_json[sf_id]['sf-data-plane-locator'][0]['service-function-forwarder'] = ovs_mapping[br_name]['sff_name']
-                sfs_json[sf_id]['sf-data-plane-locator'][0]['name'] = ovs_mapping[br_name][sf_id]['tap_port']
+                sfs_json[sf_id][dp_loc][0]['service-function-ovs:ovs-port']['port-id'] = ovs_mapping[br_name][sf_id]['tap_port']
                 LOG.debug(_('SF updated with SFF:%s'), ovs_mapping[br_name]['sff_name'])
         # try to create SFs
         for (x, y) in sfs_json.items():

@@ -152,7 +152,7 @@ class DeviceHeat(abstract_driver.DeviceAbstractDriver):
             port_dict = {
                 'type': 'OS::Neutron::Port',
                 'properties': {
-                    'value_specs': {'port_security_enabled': False}
+                 #   'value_specs': {'port_security_enabled': False}
                 }
             }
             port_dict['properties'].setdefault('fixed_ips', [])
@@ -451,7 +451,7 @@ class DeviceHeat(abstract_driver.DeviceAbstractDriver):
 class HeatClient:
     def __init__(self, context, password=None):
         # context, password are unused
-        auth_url = CONF.keystone_authtoken.auth_uri + '/v2.0'
+        auth_url = CONF.keystone_authtoken.auth_uri
         authtoken = CONF.keystone_authtoken
         kc = ks_client.Client(
             tenant_name=authtoken.project_name,
