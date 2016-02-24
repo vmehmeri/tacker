@@ -23,6 +23,7 @@ import time
 import yaml
 import requests
 import json
+import re
 
 from keystoneclient.v2_0 import client as ks_client
 from oslo_config import cfg
@@ -585,7 +586,7 @@ class DeviceOpenDaylight():
                                             print node_entry['ovsdb:bridge-name']
                                             bridge_dict['br_name'] = node_entry['ovsdb:bridge-name']
                                             full_node_id = node_entry['node-id']
-                                            node_id = full_node_id.strip('/bridge/%s' % bridge_dict['br_name'])
+                                            node_id = re.sub('/bridge.*$', '', full_node_id)
                                             bridge_dict['tap_port'] = endpoint['ovsdb:name']
                                             break
                                         else:
