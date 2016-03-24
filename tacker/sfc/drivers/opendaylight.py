@@ -426,10 +426,16 @@ class DeviceOpenDaylight():
                     br_mapping[br_name] = dict()
                     br_mapping[br_name]['sfs'] = [sf]
                     br_mapping[br_name]['ovs_ip'] = br_dict['ovs_ip']
-                    br_mapping[br_name]['sff_name'] = 'sff' + str(self.sff_counter)
                     br_mapping[br_name][sf] = dict()
                     br_mapping[br_name][sf]['tap_port'] = br_dict['tap_port']
-                    self.sff_counter += 1
+                    prev_sff_dict = self.find_existing_sffs(br_mapping)
+
+                    if prev_sff_dict is not None and br_name in prev_sff_dict:
+                        br_mapping[br_name]['sff_name'] = prev_sff_dict[br_name]['name']
+                    else:
+                        # Must be a new SFF
+                        br_mapping[br_name]['sff_name'] = 'sff' + str(self.sff_counter)
+                        self.sff_counter += 1
             else:
                 LOG.debug(_('Could not find OVS bridge for %s'), sf)
 
