@@ -251,7 +251,7 @@ class DeviceOpenDaylight():
             dp_loc_dict['service-function-ovs:ovs-port'] = {'port-id': ''}
             sf_json['nsh-aware'] = 'true'
             sf_json['ip-mgmt-address'] = vnf_dict[sf]['ip']
-            sf_json['type'] = "service-function-type:%s" % (vnf_dict[sf]['type'])
+            sf_json['type'] = vnf_dict[sf]['type']
             sf_json[dp_loc].append(dp_loc_dict)
 
             # concat service function json into full dict
@@ -378,7 +378,7 @@ class DeviceOpenDaylight():
         for sf in sfc_dict['chain']:
             temp_sf_def_json = sf_def_json_template.copy()
             temp_sf_def_json['name'] = vnf_dict[sf]['name']
-            temp_sf_def_json['type'] = "service-function-type:%s" % (vnf_dict[sf]['type'])
+            temp_sf_def_json['type'] = vnf_dict[sf]['type']
             temp_sfc_json['sfc-service-function'].append(temp_sf_def_json)
 
         temp_sfc_json['name'] = sfc_dict['name']
