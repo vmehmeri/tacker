@@ -345,7 +345,8 @@ class DeviceOpenDaylight():
             sfp_name = sfp_dict['service-function-path'][0]['name']
             is_symmetric = sfp_dict['service-function-path'][0]['symmetric']
             rsp_dict = {'input':
-                        {'parent-service-function-path': str(sfp_name),
+                        {'name': str(sfp_name),
+                         'parent-service-function-path': str(sfp_name),
                          'symmetric': str(is_symmetric).lower()}
                         }
         else:
