@@ -152,7 +152,6 @@ class DeviceHeat(abstract_driver.DeviceAbstractDriver):
             port_dict = {
                 'type': 'OS::Neutron::Port',
                 'properties': {
-                 #   'value_specs': {'port_security_enabled': False}
                 }
             }
             port_dict['properties'].setdefault('fixed_ips', [])
