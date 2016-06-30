@@ -24,6 +24,7 @@ import yaml
 import requests
 import json
 import re
+import copy
 
 from keystoneclient.v2_0 import client as ks_client
 from oslo_config import cfg
@@ -564,7 +565,7 @@ class DeviceOpenDaylight():
                 temp_sff['service-node'] = ''
                 temp_sff['service-function-forwarder-ovs:ovs-bridge'] = temp_bridge_dict
 
-            sff_list.append(temp_sff)
+            sff_list.append(copy.deepcopy(temp_sff))
 
         LOG.debug(_('SFF list output is %s'), sff_list)
         return sff_list
